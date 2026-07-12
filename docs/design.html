@@ -1,0 +1,604 @@
+<title>talent-promo-eval — Design</title>
+<style>
+  :root {
+    --page: #f9f9f7;
+    --surface: #fcfcfb;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --muted: #898781;
+    --hairline: #e1e0d9;
+    --border: rgba(11, 11, 11, 0.10);
+    --accent: #2a78d6;
+    --accent-soft: #cde2fb;
+    --good: #006300;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --code-bg: #f0efec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page: #0d0d0d;
+      --surface: #1a1a19;
+      --ink: #ffffff;
+      --ink-2: #c3c2b7;
+      --muted: #898781;
+      --hairline: #2c2c2a;
+      --border: rgba(255, 255, 255, 0.10);
+      --accent: #3987e5;
+      --accent-soft: #184f95;
+      --good: #0ca30c;
+      --grid: #2c2c2a;
+      --baseline: #383835;
+      --code-bg: #232322;
+    }
+  }
+  :root[data-theme="light"] {
+    --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e;
+    --muted: #898781; --hairline: #e1e0d9; --border: rgba(11,11,11,0.10);
+    --accent: #2a78d6; --accent-soft: #cde2fb; --good: #006300;
+    --grid: #e1e0d9; --baseline: #c3c2b7; --code-bg: #f0efec;
+  }
+  :root[data-theme="dark"] {
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7;
+    --muted: #898781; --hairline: #2c2c2a; --border: rgba(255,255,255,0.10);
+    --accent: #3987e5; --accent-soft: #184f95; --good: #0ca30c;
+    --grid: #2c2c2a; --baseline: #383835; --code-bg: #232322;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font-family: Charter, "Iowan Old Style", Georgia, "Times New Roman", serif;
+    font-size: 17px;
+    line-height: 1.65;
+  }
+  .wrap {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 56px 28px 96px;
+  }
+  h1, h2, h3 {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+    line-height: 1.2;
+  }
+  h1 { font-size: 34px; font-weight: 700; margin: 10px 0 6px; }
+  h2 { font-size: 23px; font-weight: 650; margin: 0 0 14px; }
+  h3 { font-size: 17px; font-weight: 650; margin: 22px 0 8px; }
+  p { max-width: 72ch; margin: 0 0 14px; }
+  ul, ol { max-width: 70ch; margin: 0 0 14px; padding-left: 24px; }
+  li { margin-bottom: 6px; }
+  strong { font-weight: 650; }
+  a { color: var(--accent); }
+
+  .eyebrow {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .meta {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-bottom: 0;
+  }
+  .lede {
+    font-size: 19px;
+    color: var(--ink-2);
+    max-width: 66ch;
+  }
+  section { margin-top: 64px; }
+  header.doc { padding-bottom: 8px; border-bottom: 1px solid var(--hairline); }
+
+  code, pre {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13.5px;
+  }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--hairline);
+    border-radius: 6px;
+    padding: 16px 18px;
+    overflow-x: auto;
+    line-height: 1.55;
+    margin: 0 0 14px;
+  }
+  pre code { background: none; padding: 0; }
+
+  /* ---- flow diagrams ---- */
+  .flow { display: flex; flex-direction: column; align-items: stretch; gap: 0; margin: 22px 0; }
+  .flow-row { display: flex; gap: 12px; justify-content: center; align-items: stretch; flex-wrap: wrap; }
+  .node {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 16px;
+    min-width: 150px;
+    max-width: 340px;
+    flex: 1 1 200px;
+  }
+  .node .nlabel {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+    display: block;
+    margin-bottom: 4px;
+  }
+  .node .ndesc {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 13.5px;
+    color: var(--ink-2);
+    line-height: 1.45;
+  }
+  .node.hero { border-color: var(--accent); border-width: 1.5px; }
+  .arrow {
+    display: flex; justify-content: center; align-items: center;
+    height: 30px; color: var(--muted);
+    font-family: system-ui, sans-serif; font-size: 16px;
+  }
+  .arrow::after { content: "↓"; }
+  .arrow.labeled { gap: 8px; }
+  .arrow.labeled::after { content: "↓"; }
+  .arrow .alabel {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px; color: var(--muted); letter-spacing: 0.06em;
+  }
+
+  .loopbox {
+    border: 1.5px dashed var(--accent);
+    border-radius: 8px;
+    padding: 16px;
+    background: color-mix(in srgb, var(--accent) 4%, var(--surface));
+  }
+  .loopbox .looptitle {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--accent); font-weight: 600; margin-bottom: 10px;
+  }
+  .loop-steps { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  .loop-steps .node { flex: 1 1 150px; min-width: 140px; }
+  .hsep { color: var(--muted); font-size: 15px; flex: 0 0 auto; }
+
+  /* ---- cards ---- */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin: 20px 0; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 18px 20px;
+  }
+  .card h3 { margin-top: 0; }
+  .card p, .card ul { font-size: 15px; color: var(--ink-2); }
+  .card ul { padding-left: 20px; }
+
+  /* ---- tables ---- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 14.5px;
+    margin: 16px 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .table-scroll { overflow-x: auto; }
+  th {
+    text-align: left;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--hairline);
+  }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--hairline); vertical-align: top; color: var(--ink-2); }
+  tr:last-child td { border-bottom: none; }
+  td:first-child { color: var(--ink); font-weight: 500; white-space: nowrap; }
+  td .num { font-variant-numeric: tabular-nums; }
+
+  /* ---- phases ---- */
+  .phases { counter-reset: phase; list-style: none; padding: 0; max-width: none; }
+  .phases li {
+    counter-increment: phase;
+    display: grid;
+    grid-template-columns: 44px 1fr;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--hairline);
+    margin: 0;
+  }
+  .phases li:last-child { border-bottom: none; }
+  .phases li::before {
+    content: counter(phase);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 15px; font-weight: 600;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 2px;
+  }
+  .phases .ptitle {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-weight: 650; font-size: 16px; display: block; margin-bottom: 2px;
+  }
+  .phases .pbody { font-size: 15px; color: var(--ink-2); max-width: 68ch; }
+
+  /* ---- chart ---- */
+  figure.chart {
+    margin: 22px 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 18px 18px 10px;
+  }
+  figure.chart .ctitle {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-weight: 650; font-size: 15px; margin: 0 0 2px;
+  }
+  figure.chart .csub {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 12.5px; color: var(--muted); margin: 0 0 10px;
+  }
+  .legend { display: flex; gap: 18px; margin: 6px 0 4px; flex-wrap: wrap; }
+  .legend .li { display: flex; align-items: center; gap: 7px; font-family: system-ui, sans-serif; font-size: 12.5px; color: var(--ink-2); }
+  .legend .swatch { width: 14px; height: 3px; border-radius: 2px; }
+  .chart-scroll { overflow-x: auto; }
+  svg text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+    border-radius: 0 6px 6px 0;
+    padding: 12px 18px;
+    margin: 18px 0;
+    max-width: 76ch;
+  }
+  .callout p { margin: 0; font-size: 15.5px; color: var(--ink-2); }
+  .callout p strong { color: var(--ink); }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+
+<header class="doc">
+  <span class="eyebrow">Design Document · For Review</span>
+  <h1>talent-promo-eval</h1>
+  <p class="lede">A standalone eval harness that answers one question reliably: <em>given the same seed resume and job posting, is this generated resume better than that one?</em> — judged the way real screening works, by an LLM judge we can actually trust.</p>
+  <p class="meta">2026-07-12 · repo: ~/Hanalei/talent-promo-eval · status: draft, pending approval</p>
+</header>
+
+<section>
+  <span class="eyebrow">01 · Why</span>
+  <h2>The problem</h2>
+  <p>The talent-promo app turns <code>(seed resume, job link)</code> into an optimized resume. Each change to the drafting pipeline produces new outputs — but there is no trustworthy way to say <strong>"run B is better than run A."</strong> Eyeballing doesn't scale, and a naive LLM-as-judge prompt has three known failure modes: it drifts, it can't tell subtle differences apart, and it rewards surface polish (keyword stuffing, confident tone) over substance.</p>
+  <p>This project builds the judge properly: grounded in research on how resumes are actually screened, trained against comparisons whose correct answer is <em>known by construction</em>, optimized with GEPA, and validated with a discriminative-power gate before anyone trusts its verdicts.</p>
+
+  <h3>The two-fold rubric</h3>
+  <p>A resume passes through two very different readers, so the judge scores two lenses:</p>
+  <div class="cards">
+    <div class="card">
+      <h3>Lens 1 — AI scanner (ATS)</h3>
+      <p>Modern screening software parses, extracts, and ranks before a human ever looks. The judge asks: which version parses cleanly, carries the job's actual vocabulary with evidence behind it, and surfaces a stronger match signal for <em>this</em> posting?</p>
+      <ul>
+        <li>Keyword &amp; skill coverage — grounded, not stuffed</li>
+        <li>Parse-friendly structure (headers, sections, no traps)</li>
+        <li>Title/seniority alignment with the JD</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Lens 2 — Human skim (3–7 seconds)</h3>
+      <p>Eye-tracking research puts the first human pass at roughly 6–7 seconds, concentrated on the top third: name, current title, most recent role, first bullets. The judge asks: in that window, which version lands the key evidence?</p>
+      <ul>
+        <li>Most job-relevant experience above the fold</li>
+        <li>Lead bullets carry quantified, specific outcomes</li>
+        <li>Scannable hierarchy — no walls of text</li>
+      </ul>
+    </div>
+  </div>
+  <p>Both lenses are seeded from a <strong>deep-research phase</strong> (tech-sector resume standards, how ATS/AI scanners rank in 2025–26, recruiter eye-tracking studies) distilled into <code>docs/taste-guide.md</code> — the domain knowledge the judge prompt starts from.</p>
+</section>
+
+<section>
+  <span class="eyebrow">02 · Architecture</span>
+  <h2>System overview</h2>
+  <p>One pipeline, five stages. Everything downstream of the dataset is automatic because every training pair has a known correct answer.</p>
+
+  <div class="flow">
+    <div class="flow-row">
+      <div class="node">
+        <span class="nlabel">Corpus snapshot</span>
+        <span class="ndesc">28 real traces from talent-promo (2 profiles × 14 frontier-AI JDs) + human quality codes. One-time copy — no runtime coupling to the app.</span>
+      </div>
+      <div class="node">
+        <span class="nlabel">Degradation engine</span>
+        <span class="ndesc">Controlled perturbations of real resumes, each tagged with the lens it damages (ats / human_skim) and severity (subtle / moderate / severe).</span>
+      </div>
+    </div>
+    <div class="arrow"></div>
+    <div class="flow-row">
+      <div class="node hero">
+        <span class="nlabel">Known-order pairs</span>
+        <span class="ndesc">Comparisons where the winner is known by construction. Split: train (~60–80) / val (~30) / test (~40, never seen by GEPA). Entire degradation <em>types</em> held out of training to test generalization.</span>
+      </div>
+    </div>
+    <div class="arrow"></div>
+    <div class="flow-row">
+      <div class="node">
+        <span class="nlabel">Seed judge prompt</span>
+        <span class="ndesc">Hand-written from the taste guide. Baseline accuracy measured before any optimization — GEPA has to beat it.</span>
+      </div>
+    </div>
+    <div class="arrow"></div>
+    <div class="flow-row">
+      <div class="loopbox" style="flex:1">
+        <div class="looptitle">GEPA optimization loop</div>
+        <div class="loop-steps">
+          <div class="node"><span class="nlabel">Evaluate</span><span class="ndesc">Candidate prompt judges a minibatch of pairs (both A/B orders).</span></div>
+          <div class="hsep">→</div>
+          <div class="node"><span class="nlabel">Reflect</span><span class="ndesc">For each miss: expected winner, degradation tag, judge's own rationale.</span></div>
+          <div class="hsep">→</div>
+          <div class="node"><span class="nlabel">Mutate</span><span class="ndesc">Top-tier reflection model rewrites the rubric to fix what it missed.</span></div>
+          <div class="hsep">→</div>
+          <div class="node"><span class="nlabel">Select</span><span class="ndesc">Pareto selection on the val split keeps diverse strong candidates.</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="arrow"></div>
+    <div class="flow-row">
+      <div class="node hero">
+        <span class="nlabel">Frozen optimized judge</span>
+        <span class="ndesc">Best candidate, frozen as <code>prompts/optimized_judge.md</code>.</span>
+      </div>
+    </div>
+    <div class="arrow"></div>
+    <div class="flow-row">
+      <div class="node"><span class="nlabel">Gate · accuracy</span><span class="ndesc">≥85% on held-out test; beats seed baseline.</span></div>
+      <div class="node"><span class="nlabel">Gate · consistency</span><span class="ndesc">Order-flip rate ≤10% across A/B swaps.</span></div>
+      <div class="node"><span class="nlabel">Gate · tier sensitivity</span><span class="ndesc">Smarter judge models must score higher (§05). Flat ladder = rubric failure.</span></div>
+    </div>
+    <div class="arrow"></div>
+    <div class="flow-row">
+      <div class="node">
+        <span class="nlabel">Production use</span>
+        <span class="ndesc"><code>tpe compare-runs runA.jsonl runB.jsonl</code> — win-rate report across any two app runs, per lens, with confidence intervals.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <p><strong>Cross-provider judging.</strong> The app's generator runs on Anthropic models, so the judge runs on OpenAI models (gpt-5-mini as the workhorse, top tier for reflection and the sensitivity sweep). LLMs measurably prefer their own outputs; putting the judge on a different provider removes self-preference bias at the design level.</p>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">03 · Data</span>
+  <h2>Known-order pairs: the ground truth machine</h2>
+  <p>GEPA needs a score to climb, and that score is <em>judge accuracy on comparisons we already know the answer to</em>. Three sources, in order of volume:</p>
+
+  <h3>Synthetic contrast pairs (primary)</h3>
+  <p>Take a real resume, apply one targeted degradation, and you have a pair where the original <em>must</em> win. Deterministic HTML surgery where possible; LLM rewriting only for naturalistic wording changes.</p>
+  <div class="table-scroll">
+  <table>
+    <tr><th>Lens hit</th><th>Degradation</th><th>Severity range</th></tr>
+    <tr><td>ats</td><td>Strip or synonym-drift the JD's keywords away from posting vocabulary</td><td>subtle → severe</td></tr>
+    <tr><td>ats</td><td>Remove/rename section headers; bury the skills section</td><td>moderate → severe</td></tr>
+    <tr><td>ats</td><td>De-quantify bullets (drop metrics, scale, outcomes)</td><td>subtle → moderate</td></tr>
+    <tr><td>human_skim</td><td>Push the most job-relevant experience below the fold</td><td>moderate → severe</td></tr>
+    <tr><td>human_skim</td><td>Bland lead bullets (generic duty statements first, evidence last)</td><td>subtle → moderate</td></tr>
+    <tr><td>human_skim</td><td>Wall-of-text bullets; delete the summary</td><td>moderate → severe</td></tr>
+    <tr><td>trap</td><td><strong>Keyword-stuff beyond source support</strong> — the stuffed side must LOSE</td><td>subtle → severe</td></tr>
+  </table>
+  </div>
+  <p>The <strong>traps</strong> are the anti-gaming mechanism: they teach the judge that better ≠ more keywords, and they punish any rubric GEPA evolves toward surface counting. <strong>Subtle</strong>-severity pairs are deliberately hard — they're what separates smart judge models from small ones in the tier gate.</p>
+
+  <h3>Human-anchored pairs (validation only)</h3>
+  <p>Original-vs-generated pairs from corpus traces where human failure codes support a confident ordering. Never trained on — used to check the judge agrees with human judgment, not just with our perturbation engine.</p>
+
+  <h3>Generalization guard</h3>
+  <p>Entire degradation <em>types</em> are excluded from train/val and appear only in test. If accuracy holds on unseen types, the judge learned resume quality; if it collapses, it learned our perturbation style.</p>
+</section>
+
+<section>
+  <span class="eyebrow">04 · Judge</span>
+  <h2>Single pairwise judge</h2>
+  <p>Pairwise, not absolute scoring: LLMs are unreliable at "is this an 82 or an 87?" but decent at "which is better, and why?" Pairwise verdicts also give GEPA a clean 0/1 reward with no score-drift across generations. One prompt, structured JSON output:</p>
+
+<pre><code>{
+  "ats_signal":  { "winner": "A | B | tie", "evidence": "..." },
+  "human_skim":  { "winner": "A | B | tie", "evidence": "..." },
+  "overall":     { "winner": "A | B | tie",
+                   "margin": "slight | clear | decisive",
+                   "rationale": "..." }
+}</code></pre>
+
+  <h3>Position-bias control</h3>
+  <div class="flow">
+    <div class="flow-row">
+      <div class="node"><span class="nlabel">judge(A, B)</span><span class="ndesc">First ordering</span></div>
+      <div class="node"><span class="nlabel">judge(B, A)</span><span class="ndesc">Swapped ordering</span></div>
+    </div>
+    <div class="arrow"></div>
+    <div class="flow-row">
+      <div class="node"><span class="nlabel">Agree</span><span class="ndesc">Consistent verdict → counted at full weight.</span></div>
+      <div class="node"><span class="nlabel">Disagree</span><span class="ndesc">Inconsistent → penalized in the GEPA metric. High flip-rate rubrics die in selection.</span></div>
+    </div>
+  </div>
+  <p>Every judge call is disk-cached by <code>hash(prompt, model, pair, order)</code> — GEPA re-evaluating unchanged candidates costs nothing, and reruns are reproducible. Job inputs accept a URL (fetched, extracted, cached) or raw text.</p>
+</section>
+
+<section>
+  <span class="eyebrow">05 · Validation</span>
+  <h2>The tier-sensitivity gate</h2>
+  <p>The core trick: run the <em>same frozen judge prompt</em> across the OpenAI model ladder on the held-out test set. If the rubric genuinely requires reasoning — weighing grounded evidence against surface polish — smarter models must score higher. If every tier scores the same, the rubric is a checklist any model can pattern-match, and its verdicts carry no signal.</p>
+
+  <figure class="chart">
+    <p class="ctitle">Pairwise accuracy across judge-model tiers</p>
+    <p class="csub">Illustrative target pattern — not measured data. Exact model ladder pinned during Phase 1 research.</p>
+    <div class="legend">
+      <span class="li"><span class="swatch" style="background: var(--accent)"></span>discriminative rubric (pass)</span>
+      <span class="li"><span class="swatch" style="background: var(--muted)"></span>flat rubric (fail)</span>
+    </div>
+    <div class="chart-scroll">
+    <svg viewBox="0 0 720 400" role="img" aria-label="Line chart showing a passing rubric rising from 62 to 91 percent accuracy across four model tiers, versus a failing rubric flat at about 72 percent" style="width:100%; height:auto; min-width:560px;">
+      <!-- gridlines -->
+      <g stroke="var(--grid)" stroke-width="1">
+        <line x1="70" y1="30"    x2="690" y2="30"/>
+        <line x1="70" y1="78.3"  x2="690" y2="78.3"/>
+        <line x1="70" y1="126.7" x2="690" y2="126.7"/>
+        <line x1="70" y1="175"   x2="690" y2="175"/>
+        <line x1="70" y1="223.3" x2="690" y2="223.3"/>
+      </g>
+      <!-- chance line -->
+      <line x1="70" y1="271.7" x2="690" y2="271.7" stroke="var(--baseline)" stroke-width="1.5" stroke-dasharray="5 4"/>
+      <text x="74" y="265" font-size="11" fill="var(--muted)">coin flip — 50%</text>
+      <!-- baseline axis -->
+      <line x1="70" y1="320" x2="690" y2="320" stroke="var(--baseline)" stroke-width="1.5"/>
+      <!-- y labels -->
+      <g font-size="11" fill="var(--muted)" text-anchor="end" font-variant-numeric="tabular-nums">
+        <text x="60" y="34">100%</text>
+        <text x="60" y="82">90</text>
+        <text x="60" y="131">80</text>
+        <text x="60" y="179">70</text>
+        <text x="60" y="227">60</text>
+        <text x="60" y="324">40</text>
+      </g>
+      <!-- x labels -->
+      <g font-size="12" fill="var(--ink-2)" text-anchor="middle">
+        <text x="147" y="344">nano tier</text>
+        <text x="302" y="344">mini tier</text>
+        <text x="457" y="344">mid tier</text>
+        <text x="612" y="344">top tier</text>
+      </g>
+      <text x="380" y="366" font-size="11" fill="var(--muted)" text-anchor="middle">judge model capability →</text>
+      <!-- flat rubric series (fail) -->
+      <polyline points="147,170.2 302,165.3 457,160.5 612,165.3" fill="none" stroke="var(--muted)" stroke-width="2" stroke-dasharray="6 4"/>
+      <g fill="var(--muted)" stroke="var(--surface)" stroke-width="2">
+        <circle cx="147" cy="170.2" r="5"><title>nano tier — 71% (flat rubric)</title></circle>
+        <circle cx="302" cy="165.3" r="5"><title>mini tier — 72% (flat rubric)</title></circle>
+        <circle cx="457" cy="160.5" r="5"><title>mid tier — 73% (flat rubric)</title></circle>
+        <circle cx="612" cy="165.3" r="5"><title>top tier — 72% (flat rubric)</title></circle>
+      </g>
+      <!-- discriminative rubric series (pass) -->
+      <polyline points="147,213.7 302,155.7 457,107.3 612,73.5" fill="none" stroke="var(--accent)" stroke-width="2.5"/>
+      <g fill="var(--accent)" stroke="var(--surface)" stroke-width="2">
+        <circle cx="147" cy="213.7" r="5.5"><title>nano tier — 62% (discriminative rubric)</title></circle>
+        <circle cx="302" cy="155.7" r="5.5"><title>mini tier — 74% (discriminative rubric)</title></circle>
+        <circle cx="457" cy="107.3" r="5.5"><title>mid tier — 84% (discriminative rubric)</title></circle>
+        <circle cx="612" cy="73.5" r="5.5"><title>top tier — 91% (discriminative rubric)</title></circle>
+      </g>
+      <!-- direct labels at endpoints -->
+      <text x="626" y="70" font-size="12" font-weight="600" fill="var(--accent)">91%</text>
+      <text x="626" y="169" font-size="12" font-weight="600" fill="var(--muted)">72%</text>
+      <!-- spread bracket -->
+      <g stroke="var(--ink-2)" stroke-width="1">
+        <line x1="676" y1="73.5" x2="676" y2="165.3"/>
+        <line x1="671" y1="73.5" x2="676" y2="73.5"/>
+        <line x1="671" y1="165.3" x2="676" y2="165.3"/>
+      </g>
+      <text x="683" y="122" font-size="10.5" fill="var(--ink-2)" transform="rotate(90 683 122)" text-anchor="middle">spread</text>
+    </svg>
+    </div>
+  </figure>
+
+  <p>The gate, precisely:</p>
+  <ul>
+    <li><strong>Monotone:</strong> accuracy non-decreasing up the ladder.</li>
+    <li><strong>Spread:</strong> top tier beats bottom tier by ≥10 points on the <em>subtle</em>-severity slice (severe pairs everyone should get; subtle pairs are where reasoning shows).</li>
+    <li><strong>Not noise:</strong> McNemar's test between bottom and top tiers, p &lt; 0.05.</li>
+    <li><strong>On failure:</strong> the report says so explicitly, and the subtle pairs the top tier missed become GEPA's next training focus. Optional later: the same sweep on the Anthropic ladder as a cross-provider sanity check.</li>
+  </ul>
+</section>
+
+<section>
+  <span class="eyebrow">06 · Execution</span>
+  <h2>Phases</h2>
+  <ol class="phases">
+    <li><div><span class="ptitle">Deep research → taste guide → seed prompt</span>
+      <span class="pbody">Fan-out research with cited sources: tech-resume quality standards, how ATS/AI scanners parse and rank in 2025–26, recruiter eye-tracking behavior. Also pins the current OpenAI model ladder + pricing and the current <code>gepa</code> package API. Output: <code>research-notes.md</code>, <code>taste-guide.md</code>, <code>seed_judge.md</code>.</span></div></li>
+    <li><div><span class="ptitle">Scaffold + dataset</span>
+      <span class="pbody">uv project, corpus snapshot from talent-promo, degradation engine, pair builder, train/val/test splits with held-out degradation types.</span></div></li>
+    <li><div><span class="ptitle">Judge harness</span>
+      <span class="pbody">Pairwise runner with order-swap, structured output, disk cache, job-URL fetcher; metrics module; unit tests against a mocked client, live smoke test behind the env key.</span></div></li>
+    <li><div><span class="ptitle">Baseline, then GEPA</span>
+      <span class="pbody">Seed prompt accuracy on val = the bar. GEPA run with gpt-5-mini as the judged model, top-tier reflection, budget-capped metric calls.</span></div></li>
+    <li><div><span class="ptitle">Gates + CLI</span>
+      <span class="pbody">Held-out accuracy, flip-rate, tier-sensitivity sweep + report. <code>tpe compare-runs</code> for cross-run tracking. README + this doc finalized.</span></div></li>
+  </ol>
+</section>
+
+<section>
+  <span class="eyebrow">07 · Acceptance</span>
+  <h2>Success criteria</h2>
+  <div class="table-scroll">
+  <table>
+    <tr><th>Check</th><th>Target</th></tr>
+    <tr><td>Held-out pairwise accuracy</td><td><span class="num">≥ 85%</span> overall, and clearly above the seed-prompt baseline</td></tr>
+    <tr><td>Order-flip rate</td><td><span class="num">≤ 10%</span> of pairs change winner when A/B are swapped</td></tr>
+    <tr><td>Tier gate</td><td>Monotone ladder; <span class="num">≥ 10 pt</span> spread on subtle pairs; McNemar <span class="num">p &lt; 0.05</span></td></tr>
+    <tr><td>Unseen degradation types</td><td>Accuracy holds within <span class="num">~5 pts</span> of seen types (no perturbation-style overfit)</td></tr>
+    <tr><td>Human agreement</td><td>Directional agreement with the human-anchored validation pairs</td></tr>
+    <tr><td>Cross-run report</td><td><code>tpe compare-runs</code> emits per-lens win rates with confidence intervals</td></tr>
+  </table>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">08 · Decisions</span>
+  <h2>Decision log</h2>
+  <div class="table-scroll">
+  <table>
+    <tr><th>Decision</th><th>Rationale</th></tr>
+    <tr><td>Standalone sibling repo</td><td>Zero imports from the app; consumes triples as files, so it can score any run from any app version.</td></tr>
+    <tr><td>OpenAI judge, Anthropic generator</td><td>Cross-provider judging removes LLM self-preference bias by construction.</td></tr>
+    <tr><td>Pairwise, not absolute scores</td><td>Turns a calibration problem into a discrimination problem; clean 0/1 GEPA reward; no scale drift.</td></tr>
+    <tr><td><code>gepa</code> package, not DSPy</td><td>Reference implementation; the judge prompt stays a directly-authored text artifact, which is the point of the taste guide.</td></tr>
+    <tr><td>Hybrid ground truth</td><td>Synthetic known-order pairs give volume + automatic scoring; human-coded corpus anchors keep it honest.</td></tr>
+    <tr><td>gpt-5-mini as workhorse judge</td><td>Cheap enough for GEPA's many rollouts; the tier sweep then shows how much the rubric gains from stronger models.</td></tr>
+  </table>
+  </div>
+
+  <h3>Open items</h3>
+  <ul>
+    <li>Exact OpenAI ladder (nano/mini/mid/top model ids + pricing) — confirmed in Phase 1 research.</li>
+    <li><code>OPENAI_API_KEY</code> goes into the repo's <code>.env</code> (template provided; one paste).</li>
+  </ul>
+</section>
+
+<section>
+  <span class="eyebrow">09 · Layout</span>
+  <h2>Repository layout</h2>
+<pre><code>talent-promo-eval/
+├── pyproject.toml          # uv-managed; deps: gepa, openai, pydantic, typer, httpx
+├── .env.example            # OPENAI_API_KEY=
+├── docs/
+│   ├── design.html         # this document
+│   ├── research-notes.md   # cited deep-research findings
+│   └── taste-guide.md      # distilled judging philosophy
+├── prompts/
+│   ├── seed_judge.md       # v0, hand-written from the taste guide
+│   └── optimized_judge.md  # GEPA output, frozen
+├── data/
+│   ├── corpus/             # snapshot: profiles, JDs, generated resumes, human codes
+│   └── pairs/              # train / val / test .jsonl — known-order pairs
+├── src/tpe/                # schema · job_fetch · judge · degrade · dataset
+│                           # metrics · gepa_adapter · sensitivity · cli
+├── runs/                   # verdicts, GEPA logs, sensitivity reports
+└── tests/</code></pre>
+</section>
+
+</div>
