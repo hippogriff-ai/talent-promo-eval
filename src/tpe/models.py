@@ -8,12 +8,15 @@ from openai import BadRequestError, OpenAI
 
 load_dotenv()
 
-# Pinned from docs/research-notes.md (tech-facts report). Env override: TPE_MODEL_<TIER>.
+# Pinned 2026-07-12 from live developers.openai.com pages (see docs/research-notes.md §6).
+# Env override: TPE_MODEL_<TIER>. Prices per 1M tokens (input/output):
+# nano gpt-5.4-nano $0.20/$1.25 · mini gpt-5.4-mini $0.75/$4.50
+# mid gpt-5.6-terra $2.50/$15 · top gpt-5.6-sol $5/$30
 _DEFAULT_LADDER = {
-    "nano": "gpt-5-nano",
-    "mini": "gpt-5-mini",
-    "mid": "gpt-5",
-    "top": "gpt-5.6",
+    "nano": "gpt-5.4-nano",
+    "mini": "gpt-5.4-mini",
+    "mid": "gpt-5.6-terra",
+    "top": "gpt-5.6-sol",
 }
 
 
