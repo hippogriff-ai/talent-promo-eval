@@ -42,13 +42,14 @@ def complete_json(model: str, system: str, user: str, schema: dict) -> dict:
         response_format={"type": "json_schema",
                          "json_schema": {"name": "verdict", "strict": True, "schema": schema}},
     )
-    for attempt in (1, 2):
+    attempts = 4
+    for attempt in range(1, attempts + 1):
         try:
             resp = client().chat.completions.create(**kwargs)
             return json.loads(resp.choices[0].message.content)
         except BadRequestError:
             raise  # schema/param problem: not transient, surface it
         except Exception:
-            if attempt == 2:
+            if attempt == attempts:
                 raise
-            time.sleep(2.0)
+            time.sleep(2.0 ** attempt)  # 2s, 4s, 8s
