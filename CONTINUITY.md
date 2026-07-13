@@ -20,7 +20,7 @@ Success criteria (design §07): held-out accuracy ≥85% and above seed baseline
 
 ## State
 ### Done (2026-07-12)
-- Tasks 1–15 of the plan implemented, TDD, all committed to main of ~/Hanalei/talent-promo-eval.
+- Tasks 1–15 of the plan implemented, TDD, all committed to main.
 - 51 offline tests green (`uv run pytest -q`).
 - Corpus snapshot: 28 traces + human codes + 14 JDs from talent-promo (read-only copy).
 - Dataset built: data/pairs = train 244 / val 81 / test 179 / anchor 4 (508 pairs).
