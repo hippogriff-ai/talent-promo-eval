@@ -41,7 +41,7 @@ Success criteria (design §07): held-out accuracy ≥85% and above seed baseline
 - Decision: judge input stays minimal (screeners never see session logs); the one legitimate session-log payload is candidate-confirmed discovery facts, which extend the GROUNDING source, not the judge context.
 - `src/tpe/grounding.py`: `compose_grounding(original, discovered_facts)` appends deduped facts under "## Additional facts confirmed by the candidate".
 - `compare-runs`: rows accept optional `discovered_facts` (union across both runs — a fact confirmed in either session is true of the candidate) and optional `meta` dict; report now includes per-meta-key win-rate slices with Wilson CIs (meta never reaches the judge).
-- 58 tests green. Calibration caveat: gate numbers were measured on fact-free inputs; when production rows start carrying discovered_facts, build a small facts-bearing pair set and re-check the gate.
+- 56 tests green. Calibration caveat: gate numbers were measured on fact-free inputs; when production rows start carrying discovered_facts, build a small facts-bearing pair set and re-check the gate.
 
 ### Now
 - Pipeline complete and gated. Ready for real use via `tpe compare-runs`.
