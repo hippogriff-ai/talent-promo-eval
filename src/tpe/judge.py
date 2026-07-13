@@ -1,4 +1,5 @@
 """Pairwise judge runner: render -> call -> parse, always both A/B orders, disk-cached."""
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
@@ -85,6 +86,23 @@ def judge_both_orders(template: str, model: str, pair: KnownPair,
 
 def run_pairs(template: str, model: str, pairs: list[KnownPair], cache: DiskCache,
               max_workers: int = 4) -> list["BothOrders"]:
+    """Judge all pairs. Pool failures are retried serially (the API 401s/5xxs under
+    sustained concurrency); completeness is guaranteed or we raise with the count."""
+    def attempt(p: KnownPair) -> "BothOrders | Exception":
+        try:
+            return judge_both_orders(template, model, p, cache)
+        except Exception as exc:
+            return exc
+
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        return list(pool.map(
-            lambda p: judge_both_orders(template, model, p, cache), pairs))
+        results = list(pool.map(attempt, pairs))
+    failed = [i for i, r in enumerate(results) if isinstance(r, Exception)]
+    for i in failed:  # serial retry round: cached halves are free, load is minimal
+        time.sleep(2.0)
+        results[i] = attempt(pairs[i])
+    still_failed = [pairs[i].pair_id for i, r in enumerate(results) if isinstance(r, Exception)]
+    if still_failed:
+        raise RuntimeError(
+            f"{len(still_failed)} pairs failed after retries (e.g. {still_failed[:3]}); "
+            f"re-run to resume from cache")
+    return results
