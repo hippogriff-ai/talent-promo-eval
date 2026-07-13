@@ -37,6 +37,12 @@ Success criteria (design §07): held-out accuracy ≥85% and above seed baseline
 - **Recommended production judge tier: mid (gpt-5.6-terra)** — acc 0.887 / flip 0.050 on test at half sol's price. mini stays the GEPA-loop workhorse; its test flip rate (0.335) makes it unsuitable as the production verdict-giver.
 - Ops notes: OpenAI returns 401 "insufficient permissions" under sustained concurrency (not transient, not model-gating — all 4 models pass single-threaded). Mitigated: exponential backoff in complete_json + self-healing serial retry round in run_pairs; sweep ran clean at max_workers=4.
 
+### Grounding extension + metadata slicing (2026-07-13)
+- Decision: judge input stays minimal (screeners never see session logs); the one legitimate session-log payload is candidate-confirmed discovery facts, which extend the GROUNDING source, not the judge context.
+- `src/tpe/grounding.py`: `compose_grounding(original, discovered_facts)` appends deduped facts under "## Additional facts confirmed by the candidate".
+- `compare-runs`: rows accept optional `discovered_facts` (union across both runs — a fact confirmed in either session is true of the candidate) and optional `meta` dict; report now includes per-meta-key win-rate slices with Wilson CIs (meta never reaches the judge).
+- 58 tests green. Calibration caveat: gate numbers were measured on fact-free inputs; when production rows start carrying discovered_facts, build a small facts-bearing pair set and re-check the gate.
+
 ### Now
 - Pipeline complete and gated. Ready for real use via `tpe compare-runs`.
 
@@ -44,6 +50,7 @@ Success criteria (design §07): held-out accuracy ≥85% and above seed baseline
 1. Better human anchors: replace profile-vs-generated with human-ranked generated-vs-generated pairs (removes the grounding-superset confound).
 2. drop_summary/header_flatten: add to a GEPA round 2 if summary-presence should be an enforced signal (currently held out by design).
 3. Anthropic-ladder cross-check of the tier gate (design open item).
+4. Re-check gate on facts-bearing pairs once production sessions supply discovered_facts.
 
 ## Open questions (UNCONFIRMED if needed)
 - Whether summary-presence should count as a quality signal for this product (drop_summary 0.482 on terra says the rubric doesn't enforce it; eye-tracking evidence says it helps the skim).

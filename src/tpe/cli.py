@@ -123,14 +123,16 @@ def sensitivity(
 
 @app.command("compare-runs")
 def compare_runs(
-    run_a: Path = typer.Argument(..., help="JSONL: baseline run (id, job, original, resume)"),
-    run_b: Path = typer.Argument(..., help="JSONL: candidate run (id, job, original, resume)"),
+    run_a: Path = typer.Argument(..., help="JSONL: baseline run (id, job, original, resume[, discovered_facts, meta])"),
+    run_b: Path = typer.Argument(..., help="JSONL: candidate run (id, job, original, resume[, discovered_facts, meta])"),
     prompt: Path = typer.Option(Path("prompts/optimized_judge.md")),
     model_tier: str = typer.Option("mini"),
     cache_dir: Path = typer.Option(Path("runs/cache")),
     max_workers: int = typer.Option(4),
 ):
-    """Judge run B against run A per shared id; report B's win rate with CIs."""
+    """Judge run B against run A per shared id; report B's win rate with CIs,
+    sliced by any `meta` keys present on the rows."""
+    from tpe.grounding import compose_grounding
     from tpe.judge import run_pairs
 
     def read_run(path: Path) -> dict[str, dict]:
@@ -142,10 +144,15 @@ def compare_runs(
     if not shared:
         typer.echo("no shared ids between runs")
         raise typer.Exit(1)
-    # "better" slot holds run B; pair_score==1.0 then means B beat A in both orders
+    # Grounding = original + union of candidate-confirmed facts from BOTH sessions:
+    # a fact confirmed in either session is true of the candidate regardless of run.
+    # "better" slot holds run B; pair_score==1.0 then means B beat A in both orders.
     pairs = [KnownPair(
         pair_id=f"cmp:{i}", job_text=rows_b[i]["job"],
-        original_resume=rows_b[i].get("original", ""),
+        original_resume=compose_grounding(
+            rows_b[i].get("original", ""),
+            (rows_a[i].get("discovered_facts") or []) + (rows_b[i].get("discovered_facts") or []),
+        ),
         better=rows_b[i]["resume"], worse=rows_a[i]["resume"],
         tag=None, source="synthetic", split="test",
     ) for i in shared]
@@ -160,6 +167,20 @@ def compare_runs(
         lw = sum(r.lens_score(lens) for r in results)
         llo, lhi = wilson_ci(round(lw), n)
         lines.append(f"- {lens}: {lw:g}/{n} ({lw / n:.1%}), CI [{llo:.1%}, {lhi:.1%}]")
+    # Slice win rates by every meta key present (row B's meta wins over row A's)
+    meta_by_id = {i: {**(rows_a[i].get("meta") or {}), **(rows_b[i].get("meta") or {})}
+                  for i in shared}
+    slice_keys = sorted({k for m in meta_by_id.values() for k in m})
+    for key in slice_keys:
+        groups: dict[str, list[float]] = {}
+        for i, r in zip(shared, results):
+            if key in meta_by_id[i]:
+                groups.setdefault(str(meta_by_id[i][key]), []).append(r.pair_score)
+        lines += ["", f"## by {key}"]
+        for value, scores in sorted(groups.items()):
+            gw, gn = sum(scores), len(scores)
+            glo, ghi = wilson_ci(round(gw), gn)
+            lines.append(f"- {key}={value}: {gw:g}/{gn} ({gw / gn:.1%}), CI [{glo:.1%}, {ghi:.1%}]")
     lines += ["", "| id | outcome | rationale (order-1) |", "|---|---|---|"]
     for i, r in zip(shared, results):
         outcome = {1.0: "B", 0.0: "A"}.get(r.pair_score, "split/tie")

@@ -57,8 +57,19 @@ uv run tpe compare-runs runA.jsonl runB.jsonl --prompt prompts/optimized_judge.m
 `compare-runs` input: JSONL, one row per optimization, joined on `id`:
 
 ```json
-{"id": "case-01", "job": "<posting text>", "original": "<seed resume>", "resume": "<generated html>"}
+{"id": "case-01", "job": "<posting text>", "original": "<seed resume>", "resume": "<generated html>",
+ "discovered_facts": ["<user-confirmed fact from discovery QA>", "..."],
+ "meta": {"discovery_skipped": false, "qa_turns": 4, "app_version": "1.4.0"}}
 ```
+
+`discovered_facts` (optional) are candidate-confirmed facts from the session's discovery
+QA. They are appended to the grounding source (union across both runs) so the judge does
+not flag legitimately discovered content as fabrication. Keep them to *user-authored
+facts* — never paste generator output or raw session logs here.
+
+`meta` (optional) is free-form slicing metadata. The report adds a win-rate breakdown per
+meta key (e.g. win rate when discovery was skipped vs not). Meta is never shown to the
+judge.
 
 ## Layout
 
