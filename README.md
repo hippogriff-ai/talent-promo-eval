@@ -35,6 +35,22 @@ uv sync
 cp .env.example .env   # add OPENAI_API_KEY
 ```
 
+**Data is local-only by design.** `data/` (corpus snapshot + pairs) and `runs/` are
+gitignored because they embed real job postings and the candidate profile. To
+materialize them:
+
+```bash
+uv run python scripts/snapshot_corpus.py    # copies the corpus from the talent-promo checkout
+uv run python -c "
+from pathlib import Path
+from tpe.corpus import load_corpus, load_human_codes
+from tpe.dataset import build_pairs, write_splits
+print(write_splits(build_pairs(load_corpus(), load_human_codes()), Path('data/pairs')))"
+```
+
+Splits are deterministic (hash of pair_id), so every checkout rebuilds identical
+train/val/test sets. Headline results are recorded in `CONTINUITY.md`.
+
 ## Commands
 
 ```bash
