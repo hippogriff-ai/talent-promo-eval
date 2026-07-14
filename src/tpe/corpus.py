@@ -3,6 +3,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from tpe.jsonl import read_jsonl
+
 
 @dataclass(frozen=True)
 class CorpusRecord:
@@ -36,10 +38,7 @@ def _first(raw: dict, *paths: tuple[str, ...]):
 
 def load_corpus(path: Path = Path("data/corpus/corpus.jsonl")) -> list[CorpusRecord]:
     records = []
-    for line in Path(path).read_text().splitlines():
-        if not line.strip():
-            continue
-        raw = json.loads(line)
+    for raw in read_jsonl(path):
         record = CorpusRecord(
             trace_id=raw["trace_id"],
             profile_text=_first(raw, ("source_profile",), ("profile_text",),

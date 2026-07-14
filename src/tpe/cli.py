@@ -136,7 +136,8 @@ def compare_runs(
     from tpe.judge import run_pairs
 
     def read_run(path: Path) -> dict[str, dict]:
-        rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+        from tpe.jsonl import read_jsonl
+        rows = read_jsonl(path)
         by_id = {r["id"]: r for r in rows}
         if len(by_id) != len(rows):  # a silent last-wins overwrite would judge the wrong resume
             dupes = sorted({r["id"] for r in rows if sum(x["id"] == r["id"] for x in rows) > 1})

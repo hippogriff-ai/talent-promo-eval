@@ -2,7 +2,7 @@
 A flat ladder means the rubric is a checklist any model can pattern-match — fail."""
 from dataclasses import dataclass
 
-from tpe.metrics import mcnemar_exact, summarize
+from tpe.metrics import mcnemar_exact, paired_bootstrap_diff_ci, summarize
 from tpe.models import TIERS  # capability order owned by the ladder definition
 
 MONOTONE_TOLERANCE = 0.02
@@ -20,11 +20,14 @@ class GateReport:
     spread_min: float = 0.10
     mcnemar_b: int = 0  # discordant pairs the TOP tier wins
     mcnemar_c: int = 0  # discordant pairs the BOTTOM tier wins
+    spread_ci: tuple = (0.0, 0.0)  # paired-bootstrap 95% CI on the subtle spread
 
 
 def _subtle_scores(results: list) -> list[float]:
-    return [r.pair_score for r in results
-            if r.pair.tag is not None and r.pair.tag.severity == "subtle"]
+    # Sorted by pair_id so per-tier lists stay PAIRED for the bootstrap CI.
+    subtle = [(r.pair.pair_id, r.pair_score) for r in results
+              if r.pair.tag is not None and r.pair.tag.severity == "subtle"]
+    return [score for _, score in sorted(subtle)]
 
 
 def _subtle_accuracy(results: list) -> float:
@@ -61,13 +64,18 @@ def gate(tier_results: dict[str, list], spread_min: float = 0.10) -> GateReport:
     monotone = all(accs[i + 1] >= accs[i] - MONOTONE_TOLERANCE for i in range(len(accs) - 1))
     subtle = {t: _subtle_accuracy(tier_results[t]) for t in tiers}
     subtle_spread = subtle[tiers[-1]] - subtle[tiers[0]]
+    # The spread compares two small paired slices; a point estimate near the
+    # threshold is noise-sensitive, so the gate also requires the paired-bootstrap
+    # CI to exclude zero (spread positive beyond resampling noise).
+    spread_ci = paired_bootstrap_diff_ci(_subtle_scores(tier_results[tiers[-1]]),
+                                         _subtle_scores(tier_results[tiers[0]]))
     # discordant pairs, bottom vs top tier (a pair counts correct when pair_score == 1.0)
     bottom = {r.pair.pair_id: r.pair_score == 1.0 for r in tier_results[tiers[0]]}
     top = {r.pair.pair_id: r.pair_score == 1.0 for r in tier_results[tiers[-1]]}
     b = sum(1 for pid in bottom if top.get(pid, False) and not bottom[pid])
     c = sum(1 for pid in bottom if bottom[pid] and not top.get(pid, False))
     p = mcnemar_exact(b, c)
-    spread_ok = subtle_spread >= spread_min
+    spread_ok = subtle_spread >= spread_min and spread_ci[0] > 0
     # Direction matters: a significant p with c > b means the BOTTOM tier wins more
     # discordant pairs — evidence AGAINST capability sensitivity, not for it.
     significant = p < 0.05 and b > c
@@ -78,7 +86,7 @@ def gate(tier_results: dict[str, list], spread_min: float = 0.10) -> GateReport:
         monotone=monotone, subtle_spread=subtle_spread, spread_ok=spread_ok,
         mcnemar_p=p, significant=significant,
         passed=monotone and spread_ok and significant,
-        spread_min=spread_min, mcnemar_b=b, mcnemar_c=c,
+        spread_min=spread_min, mcnemar_b=b, mcnemar_c=c, spread_ci=spread_ci,
     )
 
 
@@ -89,7 +97,7 @@ def render_report(g: GateReport) -> str:
         lines.append(f"| {t} | {row['accuracy']:.3f} | {row['subtle']:.3f} (n={row['subtle_n']}) | {row['flip_rate']:.3f} |")
     lines += ["",
               f"- monotone ladder: **{g.monotone}**",
-              f"- subtle-slice spread (top − bottom): **{g.subtle_spread:+.3f}** (gate ≥ {g.spread_min:+.2f}: {g.spread_ok})",
+              f"- subtle-slice spread (top − bottom): **{g.subtle_spread:+.3f}**, bootstrap 95% CI [{g.spread_ci[0]:+.3f}, {g.spread_ci[1]:+.3f}] (gate: ≥ {g.spread_min:+.2f} and CI > 0: {g.spread_ok})",
               f"- McNemar bottom vs top: **p = {g.mcnemar_p:.4f}**, discordants top-wins/bottom-wins = "
               f"{g.mcnemar_b}/{g.mcnemar_c} (gate: p < 0.05 AND top wins more: {g.significant})",
               f"- **GATE {'PASSED' if g.passed else 'FAILED'}**", ""]

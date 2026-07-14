@@ -53,6 +53,27 @@ def mcnemar_exact(b: int, c: int) -> float:
     return min(1.0, 2 * tail)
 
 
+def paired_bootstrap_diff_ci(top: list[float], bottom: list[float],
+                             iters: int = 2000, seed: int = 0,
+                             alpha: float = 0.05) -> tuple[float, float]:
+    """CI for mean(top) - mean(bottom) where top/bottom are PAIRED per-item scores
+    (same items, two conditions). Deterministic: seeded resampling."""
+    import random
+    if len(top) != len(bottom):
+        raise ValueError("paired bootstrap requires aligned score lists")
+    n = len(top)
+    if n == 0:
+        return (0.0, 0.0)
+    rng = random.Random(seed)
+    diffs = sorted(
+        sum(top[j] - bottom[j] for j in (rng.randrange(n) for _ in range(n))) / n
+        for _ in range(iters)
+    )
+    lo_idx = int((alpha / 2) * iters)
+    hi_idx = min(iters - 1, int((1 - alpha / 2) * iters))
+    return (diffs[lo_idx], diffs[hi_idx])
+
+
 def wilson_ci(successes: float, n: int, z: float = 1.96) -> tuple[float, float]:
     """Wilson score interval. `successes` may be fractional (ties contribute halves);
     the formula only needs p = successes/n, so no rounding — the CI stays centered

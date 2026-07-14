@@ -69,6 +69,12 @@ Success criteria (design §07): held-out accuracy ≥85% and above seed baseline
 - compare-runs: blank job text rejected (symmetric with blank original).
 - README: explicit staleness caveat — published gate numbers are v1-dataset results; re-gate pending.
 
+### Codex round 6 (clean) + gate statistics hardening (2026-07-14)
+- Round 6: codex reviewed the round-5 commit twice (auto + summon) with ZERO findings — the review loop converged on that surface.
+- Gate power caveat CLOSED: subtle-slice spread now also requires a paired-bootstrap 95% CI (seeded, deterministic) to exclude zero; report prints the CI. A thin-slice noise spread can no longer pass.
+- Reuse cleanup adopted from self-review backlog: shared tpe/jsonl.py (read with line-numbered errors, write); corpus + compare-runs migrated.
+- 103 tests green.
+
 ### Now
 - Pipeline complete and gated. Ready for real use via `tpe compare-runs`.
 
@@ -81,7 +87,7 @@ Success criteria (design §07): held-out accuracy ≥85% and above seed baseline
 ## Open questions (UNCONFIRMED if needed)
 - Two short profile-derived phrases (a metric-inflation quote and one skill name) existed in CONTINUITY.md in public git history before the 2026-07-14 redaction. Low identifiability (no names/companies), but full removal would require another fresh-repo migration — user's call.
 - Whether summary-presence should count as a quality signal for this product (drop_summary 0.482 on terra says the rubric doesn't enforce it; eye-tracking evidence says it helps the skim).
-- Gate power caveat (verifier finding, 2026-07-14): the subtle-slice spread compares two ~29-pair means against a 0.10 threshold without a CI — SE(diff) ≈ 0.13, so spreads near the threshold are noise-sensitive. Our +0.216 clears the noise band; a future borderline result should add a bootstrap CI on the spread before trusting PASS/FAIL. McNemar is unaffected (runs over all 179 pairs).
+- RESOLVED (2026-07-14): gate power caveat — the spread gate now requires a paired-bootstrap 95% CI excluding zero, in addition to the 0.10 threshold.
 
 ## Working set (files/ids/commands)
 - src/tpe/{schema,models,cache,job_fetch,corpus,degrade,dataset,judge,metrics,gepa_adapter,sensitivity,cli}.py
