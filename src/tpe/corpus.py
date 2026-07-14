@@ -13,12 +13,25 @@ class CorpusRecord:
 
 
 def _job_text(raw: dict) -> str:
-    job = raw.get("job_posting", raw.get("job_text", ""))
+    job = (raw.get("job_posting") or raw.get("job_text")
+           or (raw.get("inputs") or {}).get("job_posting") or "")
     if isinstance(job, str):
         return job
     title, company, text = job.get("title", ""), job.get("company", ""), job.get("text", "")
     header = " — ".join(x for x in (title, company) if x)
     return f"{header}\n\n{text}".strip() if header else text
+
+
+def _first(raw: dict, *paths: tuple[str, ...]):
+    for path in paths:
+        node = raw
+        for key in path:
+            node = node.get(key) if isinstance(node, dict) else None
+            if node is None:
+                break
+        if node:
+            return node
+    return None
 
 
 def load_corpus(path: Path = Path("data/corpus/corpus.jsonl")) -> list[CorpusRecord]:
@@ -27,12 +40,21 @@ def load_corpus(path: Path = Path("data/corpus/corpus.jsonl")) -> list[CorpusRec
         if not line.strip():
             continue
         raw = json.loads(line)
-        records.append(CorpusRecord(
+        record = CorpusRecord(
             trace_id=raw["trace_id"],
-            profile_text=raw.get("source_profile", raw.get("profile_text", "")),
+            profile_text=_first(raw, ("source_profile",), ("profile_text",),
+                                ("inputs", "source_profile")) or "",
             job_text=_job_text(raw),
-            generated_html=raw.get("generated_html", ""),
-        ))
+            generated_html=_first(raw, ("generated_html",),
+                                  ("outputs", "generated_html")) or "",
+        )
+        # Blank inputs would silently build a corrupt pair dataset downstream.
+        missing = [f for f in ("profile_text", "job_text", "generated_html")
+                   if not getattr(record, f).strip()]
+        if missing:
+            raise ValueError(f"corpus record {record.trace_id!r} is missing {missing}; "
+                             f"unrecognized record shape? keys: {sorted(raw)}")
+        records.append(record)
     return records
 
 

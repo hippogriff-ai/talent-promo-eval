@@ -26,6 +26,16 @@ class DegradeContext:
     jd_keywords: list[str]
 
 
+def _kw_pattern(kw: str) -> str:
+    """Keyword regex with boundary emulation that works for symbolic tokens (c++, c#):
+    plain \\b fails after a trailing +/# because they are not word characters."""
+    return rf"(?<![A-Za-z0-9_]){re.escape(kw)}(?![A-Za-z0-9_])"
+
+
+def _kw_present(kw: str, html: str) -> bool:
+    return re.search(rf"(?i){_kw_pattern(kw)}", html) is not None
+
+
 # --- html section helpers (tolerant regex splitting; resumes are simple h2/h3/ul html) ---
 
 def split_h2(html: str) -> list[str]:
@@ -56,10 +66,10 @@ def _keyword_density(text: str, keywords: list[str]) -> int:
 
 def keyword_strip(html: str, ctx: DegradeContext, severity: str) -> str:
     n = {"subtle": 2, "moderate": 5, "severe": 12}[severity]
-    present = [kw for kw in ctx.jd_keywords if re.search(rf"(?i)\b{re.escape(kw)}\b", html)]
+    present = [kw for kw in ctx.jd_keywords if _kw_present(kw, html)]
     out = html
     for kw in present[:n]:
-        out = re.sub(rf"(?i)\s*\b{re.escape(kw)}\b", " relevant technologies", out)
+        out = re.sub(rf"(?i)\s*{_kw_pattern(kw)}", " relevant technologies", out)
         out = re.sub(r"(relevant technologies)(,?\s+relevant technologies)+", r"\1", out)
     return out
 
@@ -110,10 +120,14 @@ def bury_relevant(html: str, ctx: DegradeContext, severity: str) -> str:
         head, roles = split_h3(sec)
         if len(roles) < 2:
             return html
+        # Without one uniquely JD-relevant role there is nothing to "bury" — moving an
+        # arbitrary role would create a pair that is not worse by construction.
+        dens = [_keyword_density(r, ctx.jd_keywords) for r in roles]
+        if max(dens) == 0 or dens.count(max(dens)) > 1:
+            return html
         if severity == "severe":
             reordered = list(reversed(roles))
         else:
-            dens = [_keyword_density(r, ctx.jd_keywords) for r in roles]
             hot = dens.index(max(dens))
             reordered = [r for i, r in enumerate(roles) if i != hot] + [roles[hot]]
         sections[idx] = head + "".join(reordered)
@@ -124,6 +138,10 @@ def bury_relevant(html: str, ctx: DegradeContext, severity: str) -> str:
 def _sort_bullets(ul_inner: str) -> str:
     items = re.findall(r"(?is)<li>.*?</li>", ul_inner)
     if len(items) < 2:
+        return ul_inner
+    # Only quantified bullets can be "sunk"; on a digit-free list the sort would just
+    # shuffle by length, which is not worse by construction.
+    if not any(re.search(r"\d", li) for li in items):
         return ul_inner
     ranked = sorted(items, key=lambda li: (1 if re.search(r"\d", li) else 0, len(li)))
     return "".join(ranked)
@@ -170,8 +188,7 @@ def drop_summary(html: str, ctx: DegradeContext, severity: str) -> str:
 
 def keyword_stuff(html: str, ctx: DegradeContext, severity: str) -> str:
     n = {"subtle": 5, "moderate": 10, "severe": 15}[severity]
-    missing = [kw for kw in ctx.jd_keywords
-               if not re.search(rf"(?i)\b{re.escape(kw)}\b", html)][:n]
+    missing = [kw for kw in ctx.jd_keywords if not _kw_present(kw, html)][:n]
     if not missing:
         return html
     blob = "<h2>Core Competencies</h2><p>" + ", ".join(

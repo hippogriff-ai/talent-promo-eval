@@ -35,6 +35,12 @@ def gate(tier_results: dict[str, list], spread_min: float = 0.10) -> GateReport:
     if unknown:
         raise ValueError(f"tiers not in the ladder: {sorted(unknown)} — "
                          f"add them to models._DEFAULT_LADDER, which owns tier order")
+    missing = set(TIERS) - set(tier_results)
+    if missing:
+        # Fail closed: a partial sweep (e.g. nano+top only) must not produce a PASS
+        # that never checked the intermediate rungs for monotonicity.
+        raise ValueError(f"gate requires results for every ladder tier; missing: "
+                         f"{sorted(missing)}")
     tiers = [t for t in TIERS if t in tier_results]
     summaries = {t: summarize(tier_results[t]) for t in tiers}
     accs = [summaries[t].accuracy for t in tiers]

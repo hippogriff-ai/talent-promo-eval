@@ -1,4 +1,5 @@
 """Pairwise judge runner: render -> call -> parse, always both A/B orders, disk-cached."""
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -18,11 +19,12 @@ _VERDICT_SCHEMA = JudgeVerdict.strict_json_schema()  # static; built once
 
 
 def render_prompt(template: str, job: str, original: str, a: str, b: str) -> str:
-    return (template
-            .replace("{{JOB_POSTING}}", job)
-            .replace("{{ORIGINAL_RESUME}}", original)
-            .replace("{{RESUME_A}}", a)
-            .replace("{{RESUME_B}}", b))
+    # Single pass: a placeholder-looking string INSIDE a document must never be
+    # expanded (sequential .replace would splice resume B into resume A's content).
+    fields = {"JOB_POSTING": job, "ORIGINAL_RESUME": original,
+              "RESUME_A": a, "RESUME_B": b}
+    return re.sub(r"\{\{(JOB_POSTING|ORIGINAL_RESUME|RESUME_A|RESUME_B)\}\}",
+                  lambda m: fields[m.group(1)], template)
 
 
 def judge_pair(template: str, model: str, pair: KnownPair, order: str,

@@ -22,11 +22,13 @@ def build_pairs(records: list[CorpusRecord], human_codes: dict[str, dict],
     pairs: list[KnownPair] = []
     for rec in records:
         ctx = DegradeContext(jd_keywords=extract_keywords(rec.job_text))
-        for deg in DEGRADATIONS:
+        seen_worse: set[str] = set()  # byte-identical degradations would leak the same
+        for deg in DEGRADATIONS:      # comparison across train/val/test splits
             for sev in deg.severities:
                 worse = deg.fn(rec.generated_html, ctx, sev)
-                if worse == rec.generated_html:
-                    continue  # not applicable to this record
+                if worse == rec.generated_html or worse in seen_worse:
+                    continue  # not applicable, or duplicates an already-emitted pair
+                seen_worse.add(worse)
                 pair_id = f"{rec.trace_id}:{deg.name}:{sev}"
                 pairs.append(KnownPair(
                     pair_id=pair_id, job_text=rec.job_text,

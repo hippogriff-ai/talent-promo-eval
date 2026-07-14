@@ -49,6 +49,10 @@ Success criteria (design §07): held-out accuracy ≥85% and above seed baseline
 - Production judge default now MID tier (gpt-5.6-terra) for compare-runs and judge-one; mini remains GEPA rollout workhorse only.
 - AGENTS.md (canonical agent onboarding: mechanisms, invariants, module map, pitfalls, privacy rules) + CLAUDE.md (imports AGENTS.md).
 
+### Codex review round (2026-07-14)
+- Codex (freshly enabled) returned 7 findings; all adopted: corpus loader now supports nested record shapes and REJECTS blank fields (was silent ""), keyword regexes handle symbolic tokens (c++/c#), bury_relevant/bland_leads no-op when no genuinely worse reorder exists (were creating mislabeled pairs), build_pairs dedupes byte-identical degradation outputs (train/test leakage), render_prompt is single-pass (document content can no longer expand placeholders), gate fails closed on partial ladders.
+- Dataset rebuilt with fixed builder: 508 → 500 pairs (train 240/val 78/test 178/anchor 4) — 8 duplicate/mislabeled pairs removed. Published GEPA/gate numbers were measured on the v1 dataset; deltas are marginal (1.6% of pairs) but a re-run on v2 would tighten the claim. 71 tests green.
+
 ### Now
 - Pipeline complete and gated. Ready for real use via `tpe compare-runs`.
 
