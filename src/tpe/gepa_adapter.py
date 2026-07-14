@@ -1,5 +1,6 @@
 """GEPA adapter: candidate = the judge prompt text; score = pair accuracy minus flip
 penalty; reflective feedback names the degradation each miss failed to catch."""
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 from gepa.core.adapter import EvaluationBatch, GEPAAdapter
@@ -13,21 +14,26 @@ from tpe.schema import KnownPair
 class JudgeAdapter(GEPAAdapter):
     model: str
     cache: DiskCache
+    max_workers: int = 4
 
     def evaluate(self, batch: list[KnownPair], candidate: dict[str, str],
                  capture_traces: bool = False) -> EvaluationBatch:
         template = candidate["judge_prompt"]
-        outputs, scores, results = [], [], []
-        for pair in batch:
+
+        def one(pair: KnownPair) -> tuple[KnownPair, BothOrders | None, float, dict]:
             try:
-                r: BothOrders | None = judge_both_orders(template, self.model, pair, self.cache)
-                score = r.pair_score - (0.25 if r.flipped else 0.0)
-                output = r.bw.verdict.model_dump()
-            except Exception as exc:  # per-example failure -> fallback score, not a raise
-                r, score, output = None, 0.0, {"error": str(exc)}
-            results.append((pair, r, score))
-            outputs.append(output)
-            scores.append(score)
+                r = judge_both_orders(template, self.model, pair, self.cache)
+                return pair, r, r.pair_score - (0.25 if r.flipped else 0.0), r.bw.verdict.model_dump()
+            except Exception as exc:  # per-example failure -> fallback score, never raise
+                return pair, None, 0.0, {"error": str(exc)}
+
+        # This is the system's dominant wall-clock path: every GEPA rollout lands here.
+        # pool.map preserves batch order, which the EvaluationBatch contract requires.
+        with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
+            evaluated = list(pool.map(one, batch))
+        results = [(pair, r, score) for pair, r, score, _ in evaluated]
+        outputs = [output for *_, output in evaluated]
+        scores = [score for _, _, score, _ in evaluated]
         return EvaluationBatch(outputs=outputs, scores=scores,
                                trajectories=results if capture_traces else None)
 

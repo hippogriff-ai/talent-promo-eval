@@ -1,32 +1,44 @@
 # talent-promo-eval
 
-Standalone eval harness for resume optimization quality. Given `(seed resume, job posting)` and two generated resume versions, a GEPA-optimized pairwise LLM judge decides which version serves the candidate better — so improvements between app runs can be measured instead of eyeballed.
+**A resume-quality judge you can actually trust — because it's trained on comparisons with known answers and proven to require intelligence.**
 
-The judge scores two lenses grounded in screening research (see `docs/taste-guide.md`):
-- **ats_signal** — parseable structure, grounded JD-vocabulary coverage, extractable evidence
-- **human_skim** — does the key evidence land where a ~7-second first-pass read actually goes
+Most LLM-as-judge setups are a hand-written prompt and a prayer: nobody knows whether the judge's verdicts track real quality or surface polish. This repo builds the judge differently, around two mechanisms:
 
-Judges run on OpenAI models; the generator (talent-promo app) runs on Anthropic — cross-provider judging removes self-preference bias by construction.
+### 1. GEPA evolves the rubric from examples with known answers
 
-## Pipeline
+We never ask a human "which resume is better?" during training. Instead we *manufacture* comparisons where the answer is known by construction: take a real optimized resume, apply one tagged degradation (strip the job's keywords, bury the relevant role, de-quantify the bullets, merge bullets into walls of text…), and the original must win. Keyword-**stuffed** variants are trap pairs that must **lose** — so the judge cannot learn "more keywords = better."
+
+[GEPA](https://arxiv.org/abs/2507.19457) then evolves the judge prompt against those pairs: a candidate rubric judges a batch; every miss produces reflective feedback that *names the degradation it failed to catch* ("this pair was `dequantify:subtle` and your verdict flipped with presentation order"); a top-tier model rewrites the rubric to fix exactly that; Pareto selection keeps the strongest variants. The rubric is **learned from failure, not authored from intuition** — the seed prompt (distilled from screening research, see `docs/taste-guide.md`) went from 0.784 → 0.935 accuracy and 0.358 → 0.123 order-flip rate on validation.
+
+### 2. The tier-sensitivity gate proves the rubric requires reasoning
+
+The core trust test: run the *same frozen prompt* across a model capability ladder (gpt-5.4-nano → gpt-5.4-mini → gpt-5.6-terra → gpt-5.6-sol). If the rubric encodes real judgment, smarter models must score higher — especially on *subtle* degradations. If every tier scores the same, the rubric is a checklist any model can pattern-match, and its verdicts carry no signal.
+
+The gate demands: **monotone accuracy up the ladder** + **≥10-point spread on subtle pairs** + **McNemar p < 0.05**. Our optimized judge passed: 0.749 → 0.810 → 0.887 → 0.890, subtle-slice spread +21.6 points, p < 0.0001. A flat ladder would have failed the build.
 
 ```
 corpus snapshot ──┐
                   ├─> known-order pairs (degradations, traps, held-out types)
 degradation engine┘        │
                            v
-seed prompt ──> GEPA loop (judge=mini tier, reflection=top tier) ──> optimized_judge.md
+seed prompt ──> GEPA loop (rollouts on mini, reflection on top) ──> optimized_judge.md
                            │
                            v
-       gates: held-out accuracy · order-flip rate · tier sensitivity
+       gates: held-out accuracy · order-flip rate · TIER SENSITIVITY
                            │
                            v
-              tpe compare-runs runA.jsonl runB.jsonl
+              tpe compare-runs runA.jsonl runB.jsonl   (judged on an advanced model)
 ```
 
-Every training comparison has a winner known **by construction**: a real resume vs the same resume with one tagged degradation (strip keywords, bury relevant experience, de-quantify, wall-of-text, …). Keyword-**stuffed** versions are trap pairs that must LOSE — the judge cannot be gamed by keyword counting. Two degradation types are held out of training entirely to test generalization.
+## Model-tier policy (deliberate, don't "optimize" it away)
 
-The tier-sensitivity gate runs the frozen prompt across the OpenAI ladder (nano → mini → mid → top). If smarter models don't score meaningfully higher on subtle pairs, the rubric is a checklist rather than a reasoning task, and the gate fails.
+| Tier | Model | Role |
+|---|---|---|
+| nano / mini | gpt-5.4-nano / -mini | Bottom rungs of the sensitivity ladder. **mini is also the GEPA rollout workhorse** (thousands of cheap calls during optimization) — it is NOT the production judge. |
+| mid | gpt-5.6-terra | **Production judge** — default for `compare-runs` and `judge-one`. Test accuracy 0.887, flip rate 0.050, half the price of top. |
+| top | gpt-5.6-sol | GEPA reflection (rewrites the rubric) + ceiling rung of the sensitivity ladder. |
+
+The point of optimizing on mini and *judging* on mid/top: GEPA needs volume, verdicts need capability. The sensitivity gate is what proves the capability actually buys accuracy.
 
 ## Setup
 
@@ -40,7 +52,8 @@ gitignored because they embed real job postings and the candidate profile. To
 materialize them:
 
 ```bash
-uv run python scripts/snapshot_corpus.py    # copies the corpus from the talent-promo checkout
+export TALENT_PROMO_DIR=~/path/to/talent-promo
+uv run python scripts/snapshot_corpus.py
 uv run python -c "
 from pathlib import Path
 from tpe.corpus import load_corpus, load_human_codes
@@ -54,20 +67,20 @@ train/val/test sets. Headline results are recorded in `CONTINUITY.md`.
 ## Commands
 
 ```bash
-# Score a judge prompt against a split
-uv run tpe eval-prompt --prompt prompts/seed_judge.md --split val --model-tier mini
+# Compare two app runs: B's win rate over A, per lens, with CIs (production judge = mid tier)
+uv run tpe compare-runs runA.jsonl runB.jsonl --prompt prompts/optimized_judge.md
 
 # One-off comparison (job can be a URL, file, or raw text)
 uv run tpe judge-one --job <url|file|text> --original orig.md --a v1.html --b v2.html
 
+# Score a judge prompt against a known-answer split (rubric development)
+uv run tpe eval-prompt --prompt prompts/seed_judge.md --split val
+
 # GEPA optimization (writes prompts/optimized_judge.md)
 uv run python scripts/run_gepa.py 400
 
-# Tier-sensitivity gate across the model ladder
+# The trust test: same prompt across the model ladder
 uv run tpe sensitivity --prompt prompts/optimized_judge.md --split test
-
-# Compare two app runs (B's win rate over A, per lens, with CIs)
-uv run tpe compare-runs runA.jsonl runB.jsonl --prompt prompts/optimized_judge.md
 ```
 
 `compare-runs` input: JSONL, one row per optimization, joined on `id`:
@@ -87,14 +100,22 @@ facts* — never paste generator output or raw session logs here.
 meta key (e.g. win rate when discovery was skipped vs not). Meta is never shown to the
 judge.
 
+## What the judge scores
+
+Two lenses, grounded in screening research (`docs/research-notes.md` has the cited evidence base; `docs/taste-guide.md` the distilled philosophy):
+
+- **ats_signal** — parseable structure, grounded JD-vocabulary coverage inside dated experience, extractable quantified evidence
+- **human_skim** — does the key evidence land where a ~7-second recruiter first pass actually goes (top third, titles, lead bullets)
+
+One overriding rule: **grounding dominates**. Content the original resume (+ confirmed discovered facts) cannot support makes a version worse no matter how job-aligned it reads.
+
 ## Layout
 
-- `docs/design.html` — the reviewed design document (architecture, gates, decisions)
-- `docs/research-notes.md` — cited evidence base; `docs/taste-guide.md` — distilled judging philosophy
-- `prompts/` — `seed_judge.md` (hand-written v0) and `optimized_judge.md` (GEPA output)
-- `data/corpus/` — snapshot of 28 traces from talent-promo; `data/pairs/` — train/val/test/anchor splits
-- `src/tpe/` — schema · corpus · degrade · dataset · judge · metrics · gepa_adapter · sensitivity · cli
-- `runs/` — eval results, GEPA logs, sensitivity reports (judge-call cache in `runs/cache/`, gitignored)
+- `AGENTS.md` — **onboarding for coding agents** (how it works, invariants, pitfalls)
+- `docs/design.html` — the reviewed design document; `docs/superpowers/plans/` — the implementation plan
+- `prompts/` — `seed_judge.md` (hand-written v0) and `optimized_judge.md` (GEPA output, frozen)
+- `src/tpe/` — schema · corpus · degrade · dataset · judge · metrics · gepa_adapter · sensitivity · grounding · cli
+- `runs/` — eval results, GEPA logs, sensitivity reports (gitignored; judge-call cache in `runs/cache/`)
 
 ## Tests
 

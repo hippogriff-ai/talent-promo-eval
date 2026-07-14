@@ -5,13 +5,9 @@ from typer.testing import CliRunner
 
 from tpe.cli import app
 
+from tests.conftest import make_verdict
+
 runner = CliRunner()
-
-
-def _verdict(winner: str) -> dict:
-    lens = {"winner": winner, "evidence": "e"}
-    return {"ats_signal": lens, "human_skim": lens,
-            "overall": {"winner": winner, "margin": "clear", "rationale": "r"}}
 
 
 def test_eval_prompt_runs_on_val(tmp_path: Path):
@@ -24,7 +20,7 @@ def test_eval_prompt_runs_on_val(tmp_path: Path):
                        job_text="Staff Engineer. Python, Kubernetes, Kafka, observability.")
     pairs_dir = tmp_path / "pairs"
     write_splits(build_pairs([rec], human_codes={}), pairs_dir)
-    with patch("tpe.judge.complete_json", return_value=_verdict("A")):
+    with patch("tpe.judge.complete_json", return_value=make_verdict("A")):
         result = runner.invoke(app, ["eval-prompt", "--prompt", "prompts/seed_judge.md",
                                      "--split", "val", "--limit", "2",
                                      "--pairs-dir", str(pairs_dir),
@@ -39,7 +35,7 @@ def test_judge_one_reports_consistent_verdict(tmp_path: Path):
     # judge always prefers whatever slot holds "GOOD"
     with patch("tpe.judge.complete_json",
                side_effect=lambda model, system, user, schema:
-               _verdict("A" if user.find("GOOD") < user.find("BAD") else "B")):
+               make_verdict("A" if user.find("GOOD") < user.find("BAD") else "B")):
         result = runner.invoke(app, ["judge-one", "--job", "JD text",
                                      "--original", str(tmp_path / "orig.txt"),
                                      "--a", str(tmp_path / "a.html"),

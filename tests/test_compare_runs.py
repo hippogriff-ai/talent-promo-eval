@@ -6,13 +6,9 @@ from typer.testing import CliRunner
 
 from tpe.cli import app
 
+from tests.conftest import make_verdict
+
 runner = CliRunner()
-
-
-def _verdict(winner: str) -> dict:
-    lens = {"winner": winner, "evidence": "e"}
-    return {"ats_signal": lens, "human_skim": lens,
-            "overall": {"winner": winner, "margin": "clear", "rationale": "r"}}
 
 
 def _write_run(path: Path, resume_text: str):
@@ -28,7 +24,7 @@ def test_compare_runs_reports_win_rate(tmp_path: Path):
     # B (NEW) always wins: pick whichever slot holds NEW
     with patch("tpe.judge.complete_json",
                side_effect=lambda model, system, user, schema:
-               _verdict("A" if user.find("NEW") < user.find("OLD") else "B")):
+               make_verdict("A" if user.find("NEW") < user.find("OLD") else "B")):
         result = runner.invoke(app, ["compare-runs", str(a), str(b),
                                      "--prompt", "prompts/seed_judge.md",
                                      "--cache-dir", str(tmp_path / "cache")])
@@ -47,7 +43,7 @@ def test_compare_runs_appends_discovered_facts_to_grounding(tmp_path: Path):
 
     def capture(model, system, user, schema):
         seen_prompts.append(user)
-        return _verdict("tie")
+        return make_verdict("tie")
 
     with patch("tpe.judge.complete_json", side_effect=capture):
         result = runner.invoke(app, ["compare-runs", str(a), str(b),
@@ -75,7 +71,7 @@ def test_compare_runs_slices_by_meta(tmp_path: Path):
         k = int(re.search(r"(?:NEW|OLD)(\d)", user).group(1))
         new_first = user.find(f"NEW{k}") < user.find(f"OLD{k}")
         winner_is_new = k >= 2
-        return _verdict("A" if (new_first == winner_is_new) else "B")
+        return make_verdict("A" if (new_first == winner_is_new) else "B")
 
     with patch("tpe.judge.complete_json", side_effect=respond):
         result = runner.invoke(app, ["compare-runs", str(a), str(b),

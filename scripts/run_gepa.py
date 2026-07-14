@@ -1,9 +1,6 @@
-"""GEPA optimization entry. Budget-capped; all judge calls disk-cached.
-
-Usage: uv run python scripts/run_gepa.py [max_metric_calls] [train_subset]
-"""
+"""GEPA optimization entry. Budget-capped; all judge calls disk-cached."""
+import argparse
 import json
-import sys
 import time
 from pathlib import Path
 
@@ -49,5 +46,10 @@ def main(max_metric_calls: int = 400, train_subset: int = 0) -> None:
 
 
 if __name__ == "__main__":
-    args = [int(a) for a in sys.argv[1:3]]
-    main(*args) if args else main()
+    parser = argparse.ArgumentParser(description="Evolve the judge prompt with GEPA.")
+    parser.add_argument("max_metric_calls", nargs="?", type=int, default=400,
+                        help="rollout budget (default 400)")
+    parser.add_argument("--train-subset", type=int, default=0,
+                        help="cap the trainset to N pairs (0 = all)")
+    cli = parser.parse_args()
+    main(cli.max_metric_calls, cli.train_subset)

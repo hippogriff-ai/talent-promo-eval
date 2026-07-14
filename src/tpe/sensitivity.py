@@ -3,8 +3,8 @@ A flat ladder means the rubric is a checklist any model can pattern-match — fa
 from dataclasses import dataclass
 
 from tpe.metrics import mcnemar_exact, summarize
+from tpe.models import TIERS  # capability order owned by the ladder definition
 
-TIER_ORDER = ["nano", "mini", "mid", "top"]
 MONOTONE_TOLERANCE = 0.02
 
 
@@ -17,16 +17,25 @@ class GateReport:
     mcnemar_p: float
     significant: bool
     passed: bool
+    spread_min: float = 0.10
+
+
+def _subtle_scores(results: list) -> list[float]:
+    return [r.pair_score for r in results
+            if r.pair.tag is not None and r.pair.tag.severity == "subtle"]
 
 
 def _subtle_accuracy(results: list) -> float:
-    subtle = [r.pair_score for r in results
-              if r.pair.tag is not None and r.pair.tag.severity == "subtle"]
+    subtle = _subtle_scores(results)
     return sum(subtle) / len(subtle) if subtle else 0.0
 
 
 def gate(tier_results: dict[str, list], spread_min: float = 0.10) -> GateReport:
-    tiers = [t for t in TIER_ORDER if t in tier_results]
+    unknown = set(tier_results) - set(TIERS)
+    if unknown:
+        raise ValueError(f"tiers not in the ladder: {sorted(unknown)} — "
+                         f"add them to models._DEFAULT_LADDER, which owns tier order")
+    tiers = [t for t in TIERS if t in tier_results]
     summaries = {t: summarize(tier_results[t]) for t in tiers}
     accs = [summaries[t].accuracy for t in tiers]
     monotone = all(accs[i + 1] >= accs[i] - MONOTONE_TOLERANCE for i in range(len(accs) - 1))
@@ -42,10 +51,12 @@ def gate(tier_results: dict[str, list], spread_min: float = 0.10) -> GateReport:
     significant = p < 0.05
     return GateReport(
         per_tier={t: {"accuracy": summaries[t].accuracy, "subtle": subtle[t],
+                      "subtle_n": len(_subtle_scores(tier_results[t])),
                       "flip_rate": summaries[t].flip_rate} for t in tiers},
         monotone=monotone, subtle_spread=subtle_spread, spread_ok=spread_ok,
         mcnemar_p=p, significant=significant,
         passed=monotone and spread_ok and significant,
+        spread_min=spread_min,
     )
 
 
@@ -53,10 +64,10 @@ def render_report(g: GateReport) -> str:
     lines = ["# Tier-sensitivity report", "",
              "| tier | accuracy | subtle-slice | flip rate |", "|---|---|---|---|"]
     for t, row in g.per_tier.items():
-        lines.append(f"| {t} | {row['accuracy']:.3f} | {row['subtle']:.3f} | {row['flip_rate']:.3f} |")
+        lines.append(f"| {t} | {row['accuracy']:.3f} | {row['subtle']:.3f} (n={row['subtle_n']}) | {row['flip_rate']:.3f} |")
     lines += ["",
               f"- monotone ladder: **{g.monotone}**",
-              f"- subtle-slice spread (top − bottom): **{g.subtle_spread:+.3f}** (gate ≥ +0.10: {g.spread_ok})",
+              f"- subtle-slice spread (top − bottom): **{g.subtle_spread:+.3f}** (gate ≥ {g.spread_min:+.2f}: {g.spread_ok})",
               f"- McNemar bottom vs top: **p = {g.mcnemar_p:.4f}** (gate < 0.05: {g.significant})",
               f"- **GATE {'PASSED' if g.passed else 'FAILED'}**", ""]
     if not g.passed:

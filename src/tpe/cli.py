@@ -18,7 +18,7 @@ RUNS = Path("runs")
 
 def _echo_summary(s) -> None:
     typer.echo(f"n={s.n}  accuracy={s.accuracy:.3f}  flip_rate={s.flip_rate:.3f}  "
-               f"gepa_metric={s.gepa_metric:.3f}")
+               f"tie_rate={s.tie_rate:.3f}  gepa_metric={s.gepa_metric:.3f}")
     typer.echo(f"by_lens: " + ", ".join(f"{k}={v:.3f}" for k, v in s.by_lens.items()))
     if s.by_severity:
         typer.echo("by_severity: " + ", ".join(f"{k}={v:.3f}" for k, v in sorted(s.by_severity.items())))
@@ -30,7 +30,7 @@ def _echo_summary(s) -> None:
 def eval_prompt(
     prompt: Path = typer.Option(..., help="Judge prompt template file"),
     split: str = typer.Option("val", help="train|val|test|anchor"),
-    model_tier: str = typer.Option("mini", help="nano|mini|mid|top"),
+    model_tier: str = typer.Option("mini", help="nano|mini|mid|top (mini: rubric-dev workhorse)"),
     limit: int = typer.Option(0, help="Cap number of pairs (0 = all)"),
     cache_dir: Path = typer.Option(Path("runs/cache"), help="Judge-call cache directory"),
     pairs_dir: Path = typer.Option(Path("data/pairs")),
@@ -66,7 +66,7 @@ def judge_one(
     a: Path = typer.Option(..., help="Resume version A file"),
     b: Path = typer.Option(..., help="Resume version B file"),
     prompt: Path = typer.Option(Path("prompts/optimized_judge.md")),
-    model_tier: str = typer.Option("mini"),
+    model_tier: str = typer.Option("mid", help="Production judge tier (gate-validated)"),
     cache_dir: Path = typer.Option(Path("runs/cache")),
 ):
     """Judge a single A-vs-B comparison (both orders)."""
@@ -126,7 +126,7 @@ def compare_runs(
     run_a: Path = typer.Argument(..., help="JSONL: baseline run (id, job, original, resume[, discovered_facts, meta])"),
     run_b: Path = typer.Argument(..., help="JSONL: candidate run (id, job, original, resume[, discovered_facts, meta])"),
     prompt: Path = typer.Option(Path("prompts/optimized_judge.md")),
-    model_tier: str = typer.Option("mini"),
+    model_tier: str = typer.Option("mid", help="Production judge tier (gate-validated)"),
     cache_dir: Path = typer.Option(Path("runs/cache")),
     max_workers: int = typer.Option(4),
 ):
@@ -158,15 +158,17 @@ def compare_runs(
     ) for i in shared]
     results = run_pairs(prompt.read_text(), ladder()[model_tier], pairs,
                         DiskCache(cache_dir), max_workers=max_workers)
+    def rate_line(wins: float, n: int) -> str:
+        lo, hi = wilson_ci(wins, n)
+        return f"{wins:g}/{n} ({wins / n:.1%}), 95% CI [{lo:.1%}, {hi:.1%}]"
+
     n = len(results)
     wins = sum(r.pair_score for r in results)
-    lo, hi = wilson_ci(round(wins), n)
     lines = [f"# compare-runs: {run_b.name} vs {run_a.name}", "",
-             f"B wins {wins:g}/{n} ({wins / n:.1%}), 95% CI [{lo:.1%}, {hi:.1%}]"]
+             f"B wins {rate_line(wins, n)}"]
     for lens in ("ats_signal", "human_skim"):
         lw = sum(r.lens_score(lens) for r in results)
-        llo, lhi = wilson_ci(round(lw), n)
-        lines.append(f"- {lens}: {lw:g}/{n} ({lw / n:.1%}), CI [{llo:.1%}, {lhi:.1%}]")
+        lines.append(f"- {lens}: {rate_line(lw, n)}")
     # Slice win rates by every meta key present (row B's meta wins over row A's)
     meta_by_id = {i: {**(rows_a[i].get("meta") or {}), **(rows_b[i].get("meta") or {})}
                   for i in shared}
@@ -178,9 +180,7 @@ def compare_runs(
                 groups.setdefault(str(meta_by_id[i][key]), []).append(r.pair_score)
         lines += ["", f"## by {key}"]
         for value, scores in sorted(groups.items()):
-            gw, gn = sum(scores), len(scores)
-            glo, ghi = wilson_ci(round(gw), gn)
-            lines.append(f"- {key}={value}: {gw:g}/{gn} ({gw / gn:.1%}), CI [{glo:.1%}, {ghi:.1%}]")
+            lines.append(f"- {key}={value}: {rate_line(sum(scores), len(scores))}")
     lines += ["", "| id | outcome | rationale (order-1) |", "|---|---|---|"]
     for i, r in zip(shared, results):
         outcome = {1.0: "B", 0.0: "A"}.get(r.pair_score, "split/tie")

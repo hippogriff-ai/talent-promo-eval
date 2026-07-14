@@ -39,6 +39,11 @@ class JudgeVerdict(_Strict):
                 harden(child)
             for child in node.get("$defs", {}).values():
                 harden(child)
+            for key in ("anyOf", "oneOf", "allOf", "prefixItems"):
+                for child in node.get(key, []):
+                    harden(child)
+            if isinstance(node.get("items"), dict):
+                harden(node["items"])
 
         harden(schema)
         return schema
