@@ -57,6 +57,11 @@ Success criteria (design §07): held-out accuracy ≥85% and above seed baseline
 - Codex auto-re-reviewed the fix commit; 7 more findings, all adopted: P1 privacy (CONTINUITY quoted profile-derived wording — redacted in tree; NOTE: the verbatim phrases remain in earlier public git history, see open question), bury_relevant severe now guarantees the hot role sinks (blind reversal could promote it), bland_leads only fires when a quantified bullet is genuinely demoted (stable within-class order), GEPA adapter retries transient API errors and marks infra failures as non-rubric feedback, gate validates identical pair_id sets across tiers, compare-runs rejects duplicate ids and mismatched job/original rows.
 - Dataset rebuilt (counts unchanged: 240/78/178/4 — round-2 guards didn't fire on this corpus). 79 tests green.
 
+### Codex rounds 3-4 (2026-07-14)
+- Round 3 (3 findings, all adopted): blank-original rejection in compare-runs, duplicate-pair_id rejection in the gate, single-bullet wall_of_text no-op.
+- Round 4 (4 findings, all adopted, all label-integrity in degrade.py): metric-aware number detection (OAuth2/S3/EC2 no longer mangled or misclassified as quantification), boundary-aware keyword density ("api" no longer matches "capitalization"), keyword_stuff filters terms grounded in the original profile (DegradeContext.source_text) and the trap blob carries only unsupported terms.
+- Dataset v4: 494 pairs (233/79/178/4). 87 tests green.
+
 ### Now
 - Pipeline complete and gated. Ready for real use via `tpe compare-runs`.
 

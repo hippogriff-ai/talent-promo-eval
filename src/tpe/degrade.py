@@ -24,6 +24,7 @@ def extract_keywords(job_text: str, top_n: int = 25) -> list[str]:
 @dataclass(frozen=True)
 class DegradeContext:
     jd_keywords: list[str]
+    source_text: str = ""  # the original profile: the grounding source for trap pairs
 
 
 def _kw_pattern(kw: str) -> str:
@@ -58,8 +59,17 @@ def split_h3(block: str) -> tuple[str, list[str]]:
 
 
 def _keyword_density(text: str, keywords: list[str]) -> int:
-    low = text.lower()
-    return sum(low.count(kw) for kw in keywords)
+    # Boundary-aware: a substring count would score "api" inside "capitalization".
+    return sum(len(re.findall(rf"(?i){_kw_pattern(kw)}", text)) for kw in keywords)
+
+
+# Metric-like numbers only: a digit embedded in a token (OAuth2, S3, EC2) is a
+# technology name, not quantification — mangling it would corrupt pair labels.
+_NUM = re.compile(r"(?:\b(?:by|to)\s+)?(?<![A-Za-z0-9.])\d[\d,.]*(?:\s?(?:%|x|k|K|M|MM|\+))?(?![A-Za-z0-9])")
+
+
+def _has_metric(text: str) -> bool:
+    return _NUM.search(text) is not None
 
 
 # --- degradations ---
@@ -79,9 +89,6 @@ def header_flatten(html: str, ctx: DegradeContext, severity: str) -> str:
     if severity == "severe":
         out = re.sub(r"(?is)<h2\b[^>]*>(.*?)</h2>", r"<p><b>\1</b></p>", out)
     return out
-
-
-_NUM = re.compile(r"(?:\b(?:by|to)\s+)?\d[\d,.]*\s*(?:%|x|k|K|M|MM|\+)?\s*")
 
 
 def dequantify(html: str, ctx: DegradeContext, severity: str) -> str:
@@ -145,13 +152,13 @@ def _sort_bullets(ul_inner: str) -> str:
     # non-quantified one: all-quantified, all-unquantified, or already-bland-led
     # lists must pass through unchanged (reordering same-class bullets is not
     # worse by construction). Stable sort preserves within-class order.
-    has_digit = [bool(re.search(r"\d", li)) for li in items]
+    has_digit = [_has_metric(li) for li in items]
     if not (any(has_digit) and not all(has_digit)):
         return ul_inner
     first_digit = has_digit.index(True)
     if not any(not d for d in has_digit[first_digit:]):
         return ul_inner  # every non-quantified bullet already leads; nothing to demote
-    ranked = sorted(items, key=lambda li: 1 if re.search(r"\d", li) else 0)
+    ranked = sorted(items, key=lambda li: 1 if _has_metric(li) else 0)
     return "".join(ranked)
 
 
@@ -196,11 +203,17 @@ def drop_summary(html: str, ctx: DegradeContext, severity: str) -> str:
 
 def keyword_stuff(html: str, ctx: DegradeContext, severity: str) -> str:
     n = {"subtle": 5, "moderate": 10, "severe": 15}[severity]
-    missing = [kw for kw in ctx.jd_keywords if not _kw_present(kw, html)][:n]
+    # A keyword grounded in the ORIGINAL profile is a legitimate addition, not a
+    # trap: stuffing must use only terms the candidate's materials cannot support.
+    missing = [kw for kw in ctx.jd_keywords
+               if not _kw_present(kw, html)
+               and not _kw_present(kw, ctx.source_text)][:n]
     if not missing:
         return html
+    # The blob carries ONLY unsupported terms: mixing in grounded keywords would make
+    # the "trap" partially legitimate and its known-worse label unreliable.
     blob = "<h2>Core Competencies</h2><p>" + ", ".join(
-        kw.title() for kw in (ctx.jd_keywords[:n] + missing)) + "</p>"
+        kw.title() for kw in missing) + "</p>"
     out = html + blob
     if severity != "subtle":
         stuffer = iter(missing * 3)

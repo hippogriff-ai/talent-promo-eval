@@ -21,7 +21,8 @@ def build_pairs(records: list[CorpusRecord], human_codes: dict[str, dict],
                 heldout_types: set[str] = HELDOUT_TYPES) -> list[KnownPair]:
     pairs: list[KnownPair] = []
     for rec in records:
-        ctx = DegradeContext(jd_keywords=extract_keywords(rec.job_text))
+        ctx = DegradeContext(jd_keywords=extract_keywords(rec.job_text),
+                             source_text=rec.profile_text)
         seen_worse: set[str] = set()  # byte-identical degradations would leak the same
         for deg in DEGRADATIONS:      # comparison across train/val/test splits
             for sev in deg.severities:

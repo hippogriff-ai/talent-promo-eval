@@ -140,3 +140,44 @@ def test_wall_of_text_noop_on_single_bullet_list():
     ctx = DegradeContext(jd_keywords=[])
     html = "<ul><li>Only bullet without trailing period</li></ul>"
     assert wall_of_text(html, ctx, "severe") == html
+
+
+# --- round 4 ---
+
+def test_dequantify_preserves_versioned_technologies():
+    from tpe.degrade import dequantify
+    ctx = DegradeContext(jd_keywords=[])
+    html = "<ul><li>Built OAuth2 flows on S3 and EC2, cutting latency by 43%.</li></ul>"
+    out = dequantify(html, ctx, "severe")
+    assert "OAuth2" in out and "S3" in out and "EC2" in out  # tech names untouched
+    assert "43%" not in out  # the actual metric is stripped
+
+
+def test_metric_detector_ignores_embedded_digits():
+    from tpe.degrade import _has_metric
+    assert not _has_metric("Built OAuth2 flows on S3 and EC2")
+    assert _has_metric("Reduced cost by 43%")
+    assert _has_metric("Led a team of 4 engineers")
+
+
+def test_bland_leads_ignores_versioned_tool_bullets():
+    ctx = DegradeContext(jd_keywords=[])
+    html = "<ul><li>Built OAuth2 integration.</li><li>Maintained tooling.</li></ul>"
+    assert bland_leads(html, ctx, "moderate") == html  # no quantified bullet exists
+
+
+def test_keyword_density_requires_token_boundaries():
+    from tpe.degrade import _keyword_density
+    assert _keyword_density("understands capitalization laws", ["api", "aws"]) == 0
+    assert _keyword_density("built an api on aws", ["api", "aws"]) == 2
+
+
+def test_keyword_stuff_skips_profile_grounded_terms():
+    from tpe.degrade import keyword_stuff
+    ctx = DegradeContext(jd_keywords=["kubernetes", "terraform"],
+                         source_text="Deep kubernetes production experience.")
+    html = "<ul><li>Backend work.</li></ul>"
+    out = keyword_stuff(html, ctx, "subtle")
+    # kubernetes is grounded in the profile -> adding it is not a trap; terraform is not
+    blob = out[len(html):]
+    assert "Terraform" in blob and "kubernetes" not in blob.lower().replace("terraform", "")
