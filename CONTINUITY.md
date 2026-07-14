@@ -43,6 +43,12 @@ Success criteria (design §07): held-out accuracy ≥85% and above seed baseline
 - `compare-runs`: rows accept optional `discovered_facts` (union across both runs — a fact confirmed in either session is true of the candidate) and optional `meta` dict; report now includes per-meta-key win-rate slices with Wilson CIs (meta never reaches the judge).
 - 56 tests green. Calibration caveat: gate numbers were measured on fact-free inputs; when production rows start carrying discovered_facts, build a small facts-bearing pair set and re-check the gate.
 
+### Self-review + doc/tier/onboarding pass (2026-07-14)
+- 8-angle code review (parallel finders + 1-vote verify): 8 findings confirmed and fixed — atomic/self-healing cache, refusal surfacing, transient-only retry classification (no SDK stacking), run_pairs exception fidelity, fractional Wilson CIs, parallel GEPA adapter (dominant-cost path), tier-order single source of truth, tie_rate visibility. 63 tests green.
+- README rewritten to lead with the two core mechanisms (GEPA-from-known-answer-pairs; tier-sensitivity gate as trust test) + explicit model-tier policy table.
+- Production judge default now MID tier (gpt-5.6-terra) for compare-runs and judge-one; mini remains GEPA rollout workhorse only.
+- AGENTS.md (canonical agent onboarding: mechanisms, invariants, module map, pitfalls, privacy rules) + CLAUDE.md (imports AGENTS.md).
+
 ### Now
 - Pipeline complete and gated. Ready for real use via `tpe compare-runs`.
 
