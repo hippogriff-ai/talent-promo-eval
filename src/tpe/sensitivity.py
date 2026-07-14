@@ -18,6 +18,8 @@ class GateReport:
     significant: bool
     passed: bool
     spread_min: float = 0.10
+    mcnemar_b: int = 0  # discordant pairs the TOP tier wins
+    mcnemar_c: int = 0  # discordant pairs the BOTTOM tier wins
 
 
 def _subtle_scores(results: list) -> list[float]:
@@ -66,7 +68,9 @@ def gate(tier_results: dict[str, list], spread_min: float = 0.10) -> GateReport:
     c = sum(1 for pid in bottom if bottom[pid] and not top.get(pid, False))
     p = mcnemar_exact(b, c)
     spread_ok = subtle_spread >= spread_min
-    significant = p < 0.05
+    # Direction matters: a significant p with c > b means the BOTTOM tier wins more
+    # discordant pairs — evidence AGAINST capability sensitivity, not for it.
+    significant = p < 0.05 and b > c
     return GateReport(
         per_tier={t: {"accuracy": summaries[t].accuracy, "subtle": subtle[t],
                       "subtle_n": len(_subtle_scores(tier_results[t])),
@@ -74,7 +78,7 @@ def gate(tier_results: dict[str, list], spread_min: float = 0.10) -> GateReport:
         monotone=monotone, subtle_spread=subtle_spread, spread_ok=spread_ok,
         mcnemar_p=p, significant=significant,
         passed=monotone and spread_ok and significant,
-        spread_min=spread_min,
+        spread_min=spread_min, mcnemar_b=b, mcnemar_c=c,
     )
 
 
@@ -86,7 +90,8 @@ def render_report(g: GateReport) -> str:
     lines += ["",
               f"- monotone ladder: **{g.monotone}**",
               f"- subtle-slice spread (top − bottom): **{g.subtle_spread:+.3f}** (gate ≥ {g.spread_min:+.2f}: {g.spread_ok})",
-              f"- McNemar bottom vs top: **p = {g.mcnemar_p:.4f}** (gate < 0.05: {g.significant})",
+              f"- McNemar bottom vs top: **p = {g.mcnemar_p:.4f}**, discordants top-wins/bottom-wins = "
+              f"{g.mcnemar_b}/{g.mcnemar_c} (gate: p < 0.05 AND top wins more: {g.significant})",
               f"- **GATE {'PASSED' if g.passed else 'FAILED'}**", ""]
     if not g.passed:
         lines.append("A failed gate means the rubric does not require model capability: "

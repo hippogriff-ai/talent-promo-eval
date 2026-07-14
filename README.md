@@ -14,7 +14,12 @@ We never ask a human "which resume is better?" during training. Instead we *manu
 
 The core trust test: run the *same frozen prompt* across a model capability ladder (gpt-5.4-nano → gpt-5.4-mini → gpt-5.6-terra → gpt-5.6-sol). If the rubric encodes real judgment, smarter models must score higher — especially on *subtle* degradations. If every tier scores the same, the rubric is a checklist any model can pattern-match, and its verdicts carry no signal.
 
-The gate demands: **monotone accuracy up the ladder** + **≥10-point spread on subtle pairs** + **McNemar p < 0.05**. Our optimized judge passed: 0.749 → 0.810 → 0.887 → 0.890, subtle-slice spread +21.6 points, p < 0.0001. A flat ladder would have failed the build.
+The gate demands: **monotone accuracy up the ladder** + **≥10-point spread on subtle pairs** + **directional McNemar p < 0.05**. Our optimized judge passed: 0.749 → 0.810 → 0.887 → 0.890, subtle-slice spread +21.6 points, p < 0.0001. A flat ladder would have failed the build.
+
+> **Staleness caveat:** those numbers were measured on the v1 pair dataset (508 pairs).
+> Subsequent label-integrity review rounds rebuilt the dataset (494 pairs, see
+> `CONTINUITY.md`) and tightened the flip-rate definition; a re-run of GEPA + the gate
+> on the current dataset is pending. Treat the exact figures as v1-dataset results.
 
 ```
 corpus snapshot ──┐

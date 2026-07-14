@@ -62,6 +62,13 @@ Success criteria (design §07): held-out accuracy ≥85% and above seed baseline
 - Round 4 (4 findings, all adopted, all label-integrity in degrade.py): metric-aware number detection (OAuth2/S3/EC2 no longer mangled or misclassified as quantification), boundary-aware keyword density ("api" no longer matches "capitalization"), keyword_stuff filters terms grounded in the original profile (DegradeContext.source_text) and the trap blob carries only unsupported terms.
 - Dataset v4: 494 pairs (233/79/178/4). 87 tests green.
 
+### Codex round 5 (2026-07-14) — 9 findings, all adopted
+- Degradations: metric spans exclude numbered standards (SOC 2/ISO 27001 no longer mangled); short tech tokens (Go/R/C/AI/ML...) extracted + matched case-sensitively via SHORT_TECH; slash-delimited JD skills (Python/Java) split; bland_leads/wall_of_text severity budgets count CHANGED lists, not raw indices.
+- Judge: flip definition tightened — tie<->side across orders now counts as a flip (position bias is worst on close calls). NOTE: published flip rates (0.123 val / 0.050 test) used the old, laxer definition.
+- Gate: McNemar now directional (requires top tier to WIN more discordants, not just significance); report shows b/c counts.
+- compare-runs: blank job text rejected (symmetric with blank original).
+- README: explicit staleness caveat — published gate numbers are v1-dataset results; re-gate pending.
+
 ### Now
 - Pipeline complete and gated. Ready for real use via `tpe compare-runs`.
 

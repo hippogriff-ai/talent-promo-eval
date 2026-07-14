@@ -181,3 +181,95 @@ def test_keyword_stuff_skips_profile_grounded_terms():
     # kubernetes is grounded in the profile -> adding it is not a trap; terraform is not
     blob = out[len(html):]
     assert "Terraform" in blob and "kubernetes" not in blob.lower().replace("terraform", "")
+
+
+# --- round 5 ---
+
+def test_dequantify_preserves_numbered_standards():
+    from tpe.degrade import dequantify
+    ctx = DegradeContext(jd_keywords=[])
+    html = "<ul><li>Managed SOC 2 controls and ISO 27001 readiness, cutting audit time by 30%.</li></ul>"
+    out = dequantify(html, ctx, "severe")
+    assert "SOC 2" in out and "ISO 27001" in out  # standards are names, not metrics
+    assert "30%" not in out
+
+
+def test_short_tech_tokens_extracted_case_aware():
+    from tpe.degrade import extract_keywords
+    kws = extract_keywords("Senior engineer writing Go services with R analytics and ML pipelines.")
+    assert "go" in kws and "r" in kws and "ml" in kws
+    kws2 = extract_keywords("We go fast and ship things, come r us.")
+    assert "go" not in kws2  # lowercase verb, not the language
+
+
+def test_slash_delimited_keywords_split():
+    from tpe.degrade import extract_keywords, _kw_present
+    kws = extract_keywords("Expert in Python/Java development. Python/Java daily. Python/Java stack.")
+    assert "python" in kws and "java" in kws
+    assert _kw_present("python", "I write Python services")
+
+
+def test_tie_to_side_counts_as_flip(tmp_path: Path):
+    from tpe.judge import judge_both_orders
+    responses = iter([make_verdict("tie"), make_verdict("A")])  # tie, then worse-side win
+    with patch("tpe.judge.complete_json", side_effect=lambda *a, **k: next(responses)):
+        both = judge_both_orders("{{RESUME_A}}{{RESUME_B}}{{JOB_POSTING}}{{ORIGINAL_RESUME}}",
+                                 "m", _pair(1), DiskCache(tmp_path))
+    assert both.flipped is True  # verdict changed with presentation order
+
+
+def test_double_tie_is_not_a_flip(tmp_path: Path):
+    from tpe.judge import judge_both_orders
+    with patch("tpe.judge.complete_json", return_value=make_verdict("tie")):
+        both = judge_both_orders("{{RESUME_A}}{{RESUME_B}}{{JOB_POSTING}}{{ORIGINAL_RESUME}}",
+                                 "m", _pair(2), DiskCache(tmp_path))
+    assert both.flipped is False
+
+
+def test_compare_runs_rejects_blank_job(tmp_path: Path):
+    a, b = tmp_path / "a.jsonl", tmp_path / "b.jsonl"
+    a.write_text(json.dumps({"id": "x", "job": " ", "original": "O", "resume": "R1"}) + "\n")
+    b.write_text(json.dumps({"id": "x", "job": " ", "original": "O", "resume": "R2"}) + "\n")
+    result = runner.invoke(app, ["compare-runs", str(a), str(b),
+                                 "--prompt", "prompts/seed_judge.md",
+                                 "--cache-dir", str(tmp_path / "cache")])
+    assert result.exit_code == 1
+    assert "blank 'job'" in result.output
+
+
+def test_mcnemar_gate_requires_top_to_win_more():
+    # bottom tier wins MORE discordants than top: significant p must NOT pass
+    tiers = {}
+    for t, correct_ids in (("nano", set("abcdefghij")), ("mini", set("abcdefghij")),
+                           ("mid", set("abcdefghij")), ("top", set("ab"))):
+        results = []
+        for pid in "abcdefghij":
+            r = MagicMock()
+            r.pair_score = 1.0 if pid in correct_ids else 0.0
+            r.flipped = False
+            r.lens_score = lambda lens: 1.0
+            r.pair.tag = None
+            r.pair.pair_id = pid
+            results.append(r)
+        tiers[t] = results
+    g = gate(tiers)
+    assert g.mcnemar_c > g.mcnemar_b
+    assert not g.significant  # p may be small, but the direction is wrong
+
+
+def test_bland_leads_budget_skips_unchangeable_first_list():
+    ctx = DegradeContext(jd_keywords=[])
+    skills = "<ul><li>Python.</li><li>Kafka.</li></ul>"  # wait: digits? none. unchangeable
+    exp = "<ul><li>Cut latency 43%.</li><li>Maintained tooling.</li></ul>"
+    out = bland_leads(skills + exp, ctx, "subtle")
+    assert out == skills + "<ul><li>Maintained tooling.</li><li>Cut latency 43%.</li></ul>"
+
+
+def test_wall_of_text_budget_skips_single_bullet_first_list():
+    from tpe.degrade import wall_of_text
+    ctx = DegradeContext(jd_keywords=[])
+    single = "<ul><li>Lone bullet.</li></ul>"
+    multi = "<ul><li>One thing.</li><li>Another thing.</li></ul>"
+    out = wall_of_text(single + multi, ctx, "moderate")
+    assert out.startswith(single)
+    assert out.count("<li>") == 2  # multi list merged into one bullet

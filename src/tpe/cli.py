@@ -152,18 +152,23 @@ def compare_runs(
     # Joined rows must agree on the comparison's constants; otherwise we'd judge A's
     # resume under B's job posting / grounding and skew the win rate.
     mismatched = [i for i in shared
-                  if rows_a[i]["job"] != rows_b[i]["job"]
+                  if rows_a[i].get("job", "") != rows_b[i].get("job", "")
                   or rows_a[i].get("original", "") != rows_b[i].get("original", "")]
     if mismatched:
         typer.echo(f"ids with mismatched job/original between runs: {mismatched[:5]} — "
                    f"these are not the same comparison; fix the run files")
         raise typer.Exit(1)
-    # Grounding dominates the verdict, so judging with an empty original would score
-    # resumes against no source of truth. Blank originals are malformed input.
+    # Grounding dominates the verdict and the job posting defines the target: judging
+    # with either blank scores resumes against nothing. Both are malformed input.
     ungrounded = [i for i in shared if not rows_b[i].get("original", "").strip()]
     if ungrounded:
         typer.echo(f"ids with missing/blank 'original' (the grounding source): "
                    f"{ungrounded[:5]} — every row needs the seed resume text")
+        raise typer.Exit(1)
+    jobless = [i for i in shared if not rows_b[i].get("job", "").strip()]
+    if jobless:
+        typer.echo(f"ids with missing/blank 'job': {jobless[:5]} — every row needs "
+                   f"the posting text the resumes were optimized for")
         raise typer.Exit(1)
     # Grounding = original + union of candidate-confirmed facts from BOTH sessions:
     # a fact confirmed in either session is true of the candidate regardless of run.

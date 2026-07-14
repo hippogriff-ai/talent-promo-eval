@@ -15,10 +15,24 @@ STOPWORDS = frozenset(
 )
 
 
+# Short standalone tech tokens the length filter would drop. Matched CASE-SENSITIVELY
+# against the JD ("Go" the language, not "go" the verb) and downstream in resumes.
+SHORT_TECH = {
+    "go": r"\bGo\b", "r": r"\bR\b(?![&/])", "c": r"\bC\b(?![+#/])",
+    "ai": r"\bAI\b", "ml": r"\bML\b", "ci": r"\bCI\b", "cd": r"\bCD\b",
+    "qa": r"\bQA\b", "ui": r"\bUI\b", "ux": r"\bUX\b", "k8s": r"\b[Kk]8s\b",
+}
+
+
 def extract_keywords(job_text: str, top_n: int = 25) -> list[str]:
     words = re.findall(r"[A-Za-z][A-Za-z0-9+#./-]{2,}", job_text)
-    counts = Counter(w.lower().strip("./-") for w in words)
-    return [w for w, _ in counts.most_common(top_n * 2) if w not in STOPWORDS][:top_n]
+    # "Python/Java" is two skills, not one token the boundary matcher can never find
+    parts = [p for w in words for p in w.split("/")]
+    counts = Counter(p.lower().strip("./-") for p in parts if len(p.strip("./-")) >= 3)
+    kws = [w for w, _ in counts.most_common(top_n * 2) if w not in STOPWORDS][:top_n]
+    kws += [tok for tok, pat in SHORT_TECH.items()
+            if tok not in kws and re.search(pat, job_text)]
+    return kws
 
 
 @dataclass(frozen=True)
@@ -29,12 +43,15 @@ class DegradeContext:
 
 def _kw_pattern(kw: str) -> str:
     """Keyword regex with boundary emulation that works for symbolic tokens (c++, c#):
-    plain \\b fails after a trailing +/# because they are not word characters."""
-    return rf"(?<![A-Za-z0-9_]){re.escape(kw)}(?![A-Za-z0-9_])"
+    plain \\b fails after a trailing +/# because they are not word characters.
+    SHORT_TECH tokens stay case-sensitive everywhere ("Go" the language != "go")."""
+    if kw in SHORT_TECH:
+        return SHORT_TECH[kw]
+    return rf"(?<![A-Za-z0-9_])(?i:{re.escape(kw)})(?![A-Za-z0-9_])"
 
 
 def _kw_present(kw: str, html: str) -> bool:
-    return re.search(rf"(?i){_kw_pattern(kw)}", html) is not None
+    return re.search(_kw_pattern(kw), html) is not None
 
 
 # --- html section helpers (tolerant regex splitting; resumes are simple h2/h3/ul html) ---
@@ -60,7 +77,7 @@ def split_h3(block: str) -> tuple[str, list[str]]:
 
 def _keyword_density(text: str, keywords: list[str]) -> int:
     # Boundary-aware: a substring count would score "api" inside "capitalization".
-    return sum(len(re.findall(rf"(?i){_kw_pattern(kw)}", text)) for kw in keywords)
+    return sum(len(re.findall(_kw_pattern(kw), text)) for kw in keywords)
 
 
 # Metric-like numbers only: a digit embedded in a token (OAuth2, S3, EC2) is a
@@ -68,8 +85,20 @@ def _keyword_density(text: str, keywords: list[str]) -> int:
 _NUM = re.compile(r"(?:\b(?:by|to)\s+)?(?<![A-Za-z0-9.])\d[\d,.]*(?:\s?(?:%|x|k|K|M|MM|\+))?(?![A-Za-z0-9])")
 
 
+def _metric_spans(text: str) -> list[tuple[int, int]]:
+    """Metric matches, excluding numbers that NAME things: an all-caps acronym
+    directly before the number (SOC 2, ISO 27001, PCI-DSS 4) is a standard/cert,
+    and rewriting it would mangle a grounded keyword, not remove quantification."""
+    spans = []
+    for m in _NUM.finditer(text):
+        if re.search(r"\b[A-Z]{2,}[ \-]?$", text[:m.start()]):
+            continue
+        spans.append(m.span())
+    return spans
+
+
 def _has_metric(text: str) -> bool:
-    return _NUM.search(text) is not None
+    return bool(_metric_spans(text))
 
 
 # --- degradations ---
@@ -79,7 +108,7 @@ def keyword_strip(html: str, ctx: DegradeContext, severity: str) -> str:
     present = [kw for kw in ctx.jd_keywords if _kw_present(kw, html)]
     out = html
     for kw in present[:n]:
-        out = re.sub(rf"(?i)\s*{_kw_pattern(kw)}", " relevant technologies", out)
+        out = re.sub(rf"\s*(?:{_kw_pattern(kw)})", " relevant technologies", out)
         out = re.sub(r"(relevant technologies)(,?\s+relevant technologies)+", r"\1", out)
     return out
 
@@ -95,11 +124,11 @@ def dequantify(html: str, ctx: DegradeContext, severity: str) -> str:
     """Strip quantification from bullets only (dates in headers stay intact)."""
     frac = {"subtle": 0.34, "moderate": 0.67, "severe": 1.0}[severity]
     lis = list(re.finditer(r"(?is)<li>(.*?)</li>", html))
-    numbered = [(i, nm) for i, m in enumerate(lis) for nm in _NUM.finditer(m.group(1))]
+    numbered = [(i, span) for i, m in enumerate(lis) for span in _metric_spans(m.group(1))]
     n_remove = math.ceil(len(numbered) * frac)
     remove: dict[int, list[tuple[int, int]]] = {}
-    for i, nm in numbered[:n_remove]:
-        remove.setdefault(i, []).append(nm.span())
+    for i, span in numbered[:n_remove]:
+        remove.setdefault(i, []).append(span)
     out, last = [], 0
     for i, m in enumerate(lis):
         inner = m.group(1)
@@ -166,11 +195,17 @@ def bland_leads(html: str, ctx: DegradeContext, severity: str) -> str:
     uls = list(re.finditer(r"(?is)<ul>(.*?)</ul>", html))
     if not uls:
         return html
-    limit = 1 if severity == "subtle" else len(uls)
-    out, last = [], 0
-    for i, m in enumerate(uls):
+    budget = 1 if severity == "subtle" else len(uls)
+    out, last, changed = [], 0, 0
+    for m in uls:
         out.append(html[last:m.start(1)])
-        out.append(_sort_bullets(m.group(1)) if i < limit else m.group(1))
+        inner = m.group(1)
+        if changed < budget:  # budget counts CHANGED lists, not raw indices
+            new = _sort_bullets(inner)
+            if new != inner:
+                changed += 1
+                inner = new
+        out.append(inner)
         last = m.end(1)
     out.append(html[last:])
     return "".join(out)
@@ -180,13 +215,14 @@ def wall_of_text(html: str, ctx: DegradeContext, severity: str) -> str:
     uls = list(re.finditer(r"(?is)<ul>(.*?)</ul>", html))
     if not uls:
         return html
-    limit = 1 if severity == "moderate" else len(uls)
-    out, last = [], 0
-    for i, m in enumerate(uls):
+    budget = 1 if severity == "moderate" else len(uls)
+    out, last, merged = [], 0, 0
+    for m in uls:
         out.append(html[last:m.start(1)])
         items = re.findall(r"(?is)<li>(.*?)</li>", m.group(1))
-        if i < limit and len(items) >= 2:  # merging one bullet degrades nothing
+        if merged < budget and len(items) >= 2:  # budget counts MERGED lists only
             out.append("<li>" + " ".join(x.strip().rstrip(".") + "." for x in items) + "</li>")
+            merged += 1
         else:
             out.append(m.group(1))
         last = m.end(1)

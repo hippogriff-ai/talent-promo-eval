@@ -64,9 +64,12 @@ class BothOrders:
 
     @property
     def flipped(self) -> bool:
+        """The overall verdict changed with presentation order. tie<->side changes
+        count: position bias is strongest exactly on close calls, and exempting
+        half-hedges would let order-sensitive rubrics dodge the flip penalty."""
         u1 = _unswap(self.bw.verdict.overall.winner, "BW")
         u2 = _unswap(self.wb.verdict.overall.winner, "WB")
-        return u1 != u2 and "tie" not in (u1, u2)
+        return u1 != u2
 
     @property
     def pair_score(self) -> float:
