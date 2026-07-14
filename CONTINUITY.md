@@ -60,6 +60,7 @@ Success criteria (design §07): held-out accuracy ≥85% and above seed baseline
 
 ## Open questions (UNCONFIRMED if needed)
 - Whether summary-presence should count as a quality signal for this product (drop_summary 0.482 on terra says the rubric doesn't enforce it; eye-tracking evidence says it helps the skim).
+- Gate power caveat (verifier finding, 2026-07-14): the subtle-slice spread compares two ~29-pair means against a 0.10 threshold without a CI — SE(diff) ≈ 0.13, so spreads near the threshold are noise-sensitive. Our +0.216 clears the noise band; a future borderline result should add a bootstrap CI on the spread before trusting PASS/FAIL. McNemar is unaffected (runs over all 179 pairs).
 
 ## Working set (files/ids/commands)
 - src/tpe/{schema,models,cache,job_fetch,corpus,degrade,dataset,judge,metrics,gepa_adapter,sensitivity,cli}.py
