@@ -1,5 +1,6 @@
 """GEPA adapter: candidate = the judge prompt text; score = pair accuracy minus flip
 penalty; reflective feedback names the degradation each miss failed to catch."""
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
@@ -21,11 +22,17 @@ class JudgeAdapter(GEPAAdapter):
         template = candidate["judge_prompt"]
 
         def one(pair: KnownPair) -> tuple[KnownPair, BothOrders | None, float, dict]:
-            try:
-                r = judge_both_orders(template, self.model, pair, self.cache)
-                return pair, r, r.pair_score - (0.25 if r.flipped else 0.0), r.bw.verdict.model_dump()
-            except Exception as exc:  # per-example failure -> fallback score, never raise
-                return pair, None, 0.0, {"error": str(exc)}
+            from tpe.models import RETRYABLE
+            for attempt in (1, 2):
+                try:
+                    r = judge_both_orders(template, self.model, pair, self.cache)
+                    return pair, r, r.pair_score - (0.25 if r.flipped else 0.0), r.bw.verdict.model_dump()
+                except RETRYABLE as exc:  # transient API noise must not become a
+                    if attempt == 2:      # fake "rubric miss" that GEPA learns from
+                        return pair, None, 0.0, {"error": f"transient after retries: {exc}"}
+                    time.sleep(2.0)
+                except Exception as exc:  # per-example failure -> fallback, never raise
+                    return pair, None, 0.0, {"error": str(exc)}
 
         # This is the system's dominant wall-clock path: every GEPA rollout lands here.
         # pool.map preserves batch order, which the EvaluationBatch contract requires.
@@ -47,7 +54,9 @@ class JudgeAdapter(GEPAAdapter):
                        f"'{tag.name}' (lens: {tag.lens}, severity: {tag.severity})."
                        if tag else "The known-better side is the professionally drafted version.")
             if r is None:
-                feedback = f"Score 0.00. Judge call failed. {problem}"
+                feedback = ("Score 0.00 due to an INFRASTRUCTURE failure (API error), "
+                            "not a rubric miss — draw no conclusions about the judge "
+                            "prompt from this example.")
             else:
                 feedback = (
                     f"Score {score:.2f}. {problem} "

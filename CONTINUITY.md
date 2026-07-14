@@ -33,7 +33,7 @@ Success criteria (design §07): held-out accuracy ≥85% and above seed baseline
 - **GEPA (400 metric calls, mini judge / sol reflection)**: best val 0.904. Verified independently: **acc 0.935, flip 0.123, gepa_metric 0.904** (bland_leads→0.889, stuff traps→0.863, subtle→0.898). Frozen at prompts/optimized_judge.md.
 - **Tier gate (test 179 pairs × 4 tiers): PASSED** — nano 0.749 / mini 0.810 / terra 0.887 / sol 0.890 (monotone); subtle spread +0.216 (gate ≥0.10); McNemar p<0.0001. Report: runs/sensitivity_20260712_233341.md.
 - **Held-out degradation types (never trained)**: mini generalizes with a gap (header_flatten 0.661, drop_summary 0.777); terra nails header_flatten 0.951 but drop_summary 0.482 — summary-presence is a contested signal the optimized rubric doesn't encode (GEPA never saw it, by design).
-- **Human anchors (4 pairs, terra): 0.25 acc, 0 flips — judge prefers raw profile on ats lens.** Root cause is anchor construction, not the judge: raw profile is the grounding superset (cannot lose on grounding, keyword-rich) and the judge correctly flagged real inflation in a F=92 anchor ("projected over 60%" → "saving 60%", unsupported FastAPI) — the exact Phase B signature failure. human_skim lens agrees with humans 0.75.
+- **Human anchors (4 pairs, terra): 0.25 acc, 0 flips — judge prefers raw profile on ats lens.** Root cause is anchor construction, not the judge: the raw profile is the grounding superset (cannot lose on grounding, keyword-rich), and on a high-F anchor the judge correctly flagged a projected-metric-stated-as-realized inflation plus one unsupported skill claim — the same failure class the Phase B human coding identified as the drafter's signature. human_skim lens agrees with humans 0.75. (Specific wording redacted per the no-profile-text rule; see the local run log for the verbatim rationale.)
 - **Recommended production judge tier: mid (gpt-5.6-terra)** — acc 0.887 / flip 0.050 on test at half sol's price. mini stays the GEPA-loop workhorse; its test flip rate (0.335) makes it unsuitable as the production verdict-giver.
 - Ops notes: OpenAI returns 401 "insufficient permissions" under sustained concurrency (not transient, not model-gating — all 4 models pass single-threaded). Mitigated: exponential backoff in complete_json + self-healing serial retry round in run_pairs; sweep ran clean at max_workers=4.
 
@@ -53,6 +53,10 @@ Success criteria (design §07): held-out accuracy ≥85% and above seed baseline
 - Codex (freshly enabled) returned 7 findings; all adopted: corpus loader now supports nested record shapes and REJECTS blank fields (was silent ""), keyword regexes handle symbolic tokens (c++/c#), bury_relevant/bland_leads no-op when no genuinely worse reorder exists (were creating mislabeled pairs), build_pairs dedupes byte-identical degradation outputs (train/test leakage), render_prompt is single-pass (document content can no longer expand placeholders), gate fails closed on partial ladders.
 - Dataset rebuilt with fixed builder: 508 → 500 pairs (train 240/val 78/test 178/anchor 4) — 8 duplicate/mislabeled pairs removed. Published GEPA/gate numbers were measured on the v1 dataset; deltas are marginal (1.6% of pairs) but a re-run on v2 would tighten the claim. 71 tests green.
 
+### Codex round 2 (2026-07-14)
+- Codex auto-re-reviewed the fix commit; 7 more findings, all adopted: P1 privacy (CONTINUITY quoted profile-derived wording — redacted in tree; NOTE: the verbatim phrases remain in earlier public git history, see open question), bury_relevant severe now guarantees the hot role sinks (blind reversal could promote it), bland_leads only fires when a quantified bullet is genuinely demoted (stable within-class order), GEPA adapter retries transient API errors and marks infra failures as non-rubric feedback, gate validates identical pair_id sets across tiers, compare-runs rejects duplicate ids and mismatched job/original rows.
+- Dataset rebuilt (counts unchanged: 240/78/178/4 — round-2 guards didn't fire on this corpus). 79 tests green.
+
 ### Now
 - Pipeline complete and gated. Ready for real use via `tpe compare-runs`.
 
@@ -63,6 +67,7 @@ Success criteria (design §07): held-out accuracy ≥85% and above seed baseline
 4. Re-check gate on facts-bearing pairs once production sessions supply discovered_facts.
 
 ## Open questions (UNCONFIRMED if needed)
+- Two short profile-derived phrases (a metric-inflation quote and one skill name) existed in CONTINUITY.md in public git history before the 2026-07-14 redaction. Low identifiability (no names/companies), but full removal would require another fresh-repo migration — user's call.
 - Whether summary-presence should count as a quality signal for this product (drop_summary 0.482 on terra says the rubric doesn't enforce it; eye-tracking evidence says it helps the skim).
 - Gate power caveat (verifier finding, 2026-07-14): the subtle-slice spread compares two ~29-pair means against a 0.10 threshold without a CI — SE(diff) ≈ 0.13, so spreads near the threshold are noise-sensitive. Our +0.216 clears the noise band; a future borderline result should add a bootstrap CI on the spread before trusting PASS/FAIL. McNemar is unaffected (runs over all 179 pairs).
 

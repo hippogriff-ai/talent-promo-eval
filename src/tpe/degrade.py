@@ -125,11 +125,13 @@ def bury_relevant(html: str, ctx: DegradeContext, severity: str) -> str:
         dens = [_keyword_density(r, ctx.jd_keywords) for r in roles]
         if max(dens) == 0 or dens.count(max(dens)) > 1:
             return html
+        hot = dens.index(max(dens))
+        rest = [r for i, r in enumerate(roles) if i != hot]
         if severity == "severe":
-            reordered = list(reversed(roles))
-        else:
-            hot = dens.index(max(dens))
-            reordered = [r for i, r in enumerate(roles) if i != hot] + [roles[hot]]
+            rest = list(reversed(rest))  # additionally break the remaining chronology
+        # Both severities GUARANTEE the hot role sinks to last (a blind full reversal
+        # could promote a hot role that wasn't first, mislabeling the pair).
+        reordered = rest + [roles[hot]]
         sections[idx] = head + "".join(reordered)
         return "".join(sections)
     return html
@@ -139,11 +141,17 @@ def _sort_bullets(ul_inner: str) -> str:
     items = re.findall(r"(?is)<li>.*?</li>", ul_inner)
     if len(items) < 2:
         return ul_inner
-    # Only quantified bullets can be "sunk"; on a digit-free list the sort would just
-    # shuffle by length, which is not worse by construction.
-    if not any(re.search(r"\d", li) for li in items):
+    # Emit a change ONLY when a quantified bullet is genuinely demoted below a
+    # non-quantified one: all-quantified, all-unquantified, or already-bland-led
+    # lists must pass through unchanged (reordering same-class bullets is not
+    # worse by construction). Stable sort preserves within-class order.
+    has_digit = [bool(re.search(r"\d", li)) for li in items]
+    if not (any(has_digit) and not all(has_digit)):
         return ul_inner
-    ranked = sorted(items, key=lambda li: (1 if re.search(r"\d", li) else 0, len(li)))
+    first_digit = has_digit.index(True)
+    if not any(not d for d in has_digit[first_digit:]):
+        return ul_inner  # every non-quantified bullet already leads; nothing to demote
+    ranked = sorted(items, key=lambda li: 1 if re.search(r"\d", li) else 0)
     return "".join(ranked)
 
 

@@ -137,12 +137,26 @@ def compare_runs(
 
     def read_run(path: Path) -> dict[str, dict]:
         rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
-        return {r["id"]: r for r in rows}
+        by_id = {r["id"]: r for r in rows}
+        if len(by_id) != len(rows):  # a silent last-wins overwrite would judge the wrong resume
+            dupes = sorted({r["id"] for r in rows if sum(x["id"] == r["id"] for x in rows) > 1})
+            typer.echo(f"duplicate ids in {path.name}: {dupes[:5]} — deduplicate the run file first")
+            raise typer.Exit(1)
+        return by_id
 
     rows_a, rows_b = read_run(run_a), read_run(run_b)
     shared = sorted(set(rows_a) & set(rows_b))
     if not shared:
         typer.echo("no shared ids between runs")
+        raise typer.Exit(1)
+    # Joined rows must agree on the comparison's constants; otherwise we'd judge A's
+    # resume under B's job posting / grounding and skew the win rate.
+    mismatched = [i for i in shared
+                  if rows_a[i]["job"] != rows_b[i]["job"]
+                  or rows_a[i].get("original", "") != rows_b[i].get("original", "")]
+    if mismatched:
+        typer.echo(f"ids with mismatched job/original between runs: {mismatched[:5]} — "
+                   f"these are not the same comparison; fix the run files")
         raise typer.Exit(1)
     # Grounding = original + union of candidate-confirmed facts from BOTH sessions:
     # a fact confirmed in either session is true of the candidate regardless of run.

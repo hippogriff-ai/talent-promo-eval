@@ -42,6 +42,13 @@ def gate(tier_results: dict[str, list], spread_min: float = 0.10) -> GateReport:
         raise ValueError(f"gate requires results for every ladder tier; missing: "
                          f"{sorted(missing)}")
     tiers = [t for t in TIERS if t in tier_results]
+    # Every tier must have judged the SAME pairs: mixed splits/limits/partial caches
+    # would make accuracy, spread, and McNemar non-comparable across tiers.
+    id_sets = {t: frozenset(r.pair.pair_id for r in tier_results[t]) for t in tiers}
+    if len(set(id_sets.values())) > 1:
+        counts = {t: len(ids) for t, ids in id_sets.items()}
+        raise ValueError(f"tiers judged different pair sets {counts}; "
+                         f"re-run the sweep so every tier covers identical pairs")
     summaries = {t: summarize(tier_results[t]) for t in tiers}
     accs = [summaries[t].accuracy for t in tiers]
     monotone = all(accs[i + 1] >= accs[i] - MONOTONE_TOLERANCE for i in range(len(accs) - 1))
