@@ -113,3 +113,30 @@ def test_compare_runs_rejects_mismatched_job_or_original(tmp_path: Path):
                                  "--cache-dir", str(tmp_path / "cache")])
     assert result.exit_code == 1
     assert "mismatched job/original" in result.output
+
+
+# --- round 3 ---
+
+def test_compare_runs_rejects_blank_original(tmp_path: Path):
+    a, b = tmp_path / "a.jsonl", tmp_path / "b.jsonl"
+    a.write_text(json.dumps({"id": "x", "job": "J", "resume": "R1"}) + "\n")
+    b.write_text(json.dumps({"id": "x", "job": "J", "resume": "R2"}) + "\n")
+    result = runner.invoke(app, ["compare-runs", str(a), str(b),
+                                 "--prompt", "prompts/seed_judge.md",
+                                 "--cache-dir", str(tmp_path / "cache")])
+    assert result.exit_code == 1
+    assert "grounding" in result.output
+
+
+def test_gate_rejects_duplicate_pair_ids_within_tier():
+    tiers = {t: _tier_results(["a", "b"]) for t in ("nano", "mini", "mid")}
+    tiers["top"] = _tier_results(["a", "b", "b"])  # concatenated retry output
+    with pytest.raises(ValueError, match="duplicate pair_ids"):
+        gate(tiers)
+
+
+def test_wall_of_text_noop_on_single_bullet_list():
+    from tpe.degrade import wall_of_text
+    ctx = DegradeContext(jd_keywords=[])
+    html = "<ul><li>Only bullet without trailing period</li></ul>"
+    assert wall_of_text(html, ctx, "severe") == html

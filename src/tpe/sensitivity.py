@@ -45,6 +45,11 @@ def gate(tier_results: dict[str, list], spread_min: float = 0.10) -> GateReport:
     # Every tier must have judged the SAME pairs: mixed splits/limits/partial caches
     # would make accuracy, spread, and McNemar non-comparable across tiers.
     id_sets = {t: frozenset(r.pair.pair_id for r in tier_results[t]) for t in tiers}
+    duped = {t: len(tier_results[t]) - len(id_sets[t]) for t in tiers
+             if len(tier_results[t]) != len(id_sets[t])}
+    if duped:
+        raise ValueError(f"duplicate pair_ids within tier results {duped}; "
+                         f"a concatenated/partial sweep output is not comparable")
     if len(set(id_sets.values())) > 1:
         counts = {t: len(ids) for t, ids in id_sets.items()}
         raise ValueError(f"tiers judged different pair sets {counts}; "

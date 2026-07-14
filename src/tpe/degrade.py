@@ -177,8 +177,8 @@ def wall_of_text(html: str, ctx: DegradeContext, severity: str) -> str:
     out, last = [], 0
     for i, m in enumerate(uls):
         out.append(html[last:m.start(1)])
-        if i < limit:
-            items = re.findall(r"(?is)<li>(.*?)</li>", m.group(1))
+        items = re.findall(r"(?is)<li>(.*?)</li>", m.group(1))
+        if i < limit and len(items) >= 2:  # merging one bullet degrades nothing
             out.append("<li>" + " ".join(x.strip().rstrip(".") + "." for x in items) + "</li>")
         else:
             out.append(m.group(1))

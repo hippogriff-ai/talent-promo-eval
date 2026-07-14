@@ -158,6 +158,13 @@ def compare_runs(
         typer.echo(f"ids with mismatched job/original between runs: {mismatched[:5]} — "
                    f"these are not the same comparison; fix the run files")
         raise typer.Exit(1)
+    # Grounding dominates the verdict, so judging with an empty original would score
+    # resumes against no source of truth. Blank originals are malformed input.
+    ungrounded = [i for i in shared if not rows_b[i].get("original", "").strip()]
+    if ungrounded:
+        typer.echo(f"ids with missing/blank 'original' (the grounding source): "
+                   f"{ungrounded[:5]} — every row needs the seed resume text")
+        raise typer.Exit(1)
     # Grounding = original + union of candidate-confirmed facts from BOTH sessions:
     # a fact confirmed in either session is true of the candidate regardless of run.
     # "better" slot holds run B; pair_score==1.0 then means B beat A in both orders.
