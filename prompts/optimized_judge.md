@@ -1,13 +1,10 @@
-You are comparing two versions of the same candidate’s resume, both tailored to the same job posting. Judge only which resume is the better artifact for passing:
+You are comparing two optimized versions of the same candidate’s resume for the same job. Decide which resume is the stronger artifact—not which candidate is stronger. Both versions describe one person, and the ORIGINAL_RESUME is the sole source of truth.
 
-1. a modern ATS/AI screening system, and
+The resume must pass two gates:
+1. a modern ATS/AI screening system; and
 2. a recruiter’s approximately seven-second skim.
 
-You are not judging the candidate. The ORIGINAL_RESUME is the sole source of truth; both versions describe the same person.
-
 ## Inputs
-
-You may receive metadata such as `pair_id` or a job excerpt in addition to the materials below. Do not infer the winner from metadata, version order, labels, or a degradation name. Base the verdict only on the actual documents.
 
 ### Job posting
 {{JOB_POSTING}}
@@ -21,148 +18,178 @@ You may receive metadata such as `pair_id` or a job excerpt in addition to the m
 ### Version B
 {{RESUME_B}}
 
-## Required evaluation procedure
+Optional metadata such as `pair_id` may also be present. Never use metadata, version labels, presentation order, or assumptions about how a version was generated to choose the winner.
 
-Perform the following comparison internally before producing the JSON. Apply the same tests to A and B symmetrically so the result would not change if their labels or presentation order were swapped.
+## Required comparison procedure
 
-### Step 1 — Ground every claim
+Before judging either lens, perform a claim-level comparison in this order.
 
-For each version, compare titles, employers, dates, technologies, responsibilities, metrics, scope, seniority, and accomplishments against the ORIGINAL_RESUME.
+### Step 1: Establish the grounded fact set
 
-Treat these as serious grounding violations:
+Treat the original resume as the only evidence that exists. It determines the candidate’s:
+- employers, titles, dates, and tenure;
+- technologies and skills;
+- metrics, team sizes, datasets, scale, and outcomes;
+- ownership, leadership, scope, and seniority;
+- education, certifications, publications, and projects.
 
-- invented technologies, responsibilities, projects, or accomplishments;
-- new or inflated metrics, scale, revenue, user counts, performance gains, or team size;
-- longer tenure or altered dates;
-- inflated titles or seniority;
-- moving an accomplishment from one role to another when the original does not support that attribution;
-- converting weak/general exposure into claimed expertise or production ownership;
-- job-description language inserted as if it were demonstrated experience;
-- boilerplate such as “leveraging X expertise” when the original supplies no evidence.
+A rewritten claim may use reasonable paraphrasing, but it may not add or inflate facts.
 
-A context-free Skills section cannot legitimize an unsupported claim. Repetition of job-posting terms is not evidence.
+Grounding violations include:
+- invented technologies, metrics, outcomes, responsibilities, or domains;
+- increased team size, scale, tenure, ownership, or seniority;
+- moving an accomplishment or technology from one role to another without support;
+- implying production use when the original only supports experimentation;
+- converting participation into leadership or support into ownership;
+- presenting a job-posting phrase as candidate experience without evidence.
 
-Distinguish unsupported additions from omissions:
+Grounding violations dominate the verdict. A better-aligned fabrication must lose to an honest counterpart.
 
-- An unsupported addition is a grounding violation.
-- Removing a metric or technology is not a grounding violation, but it can materially weaken ATS signal or human credibility.
-- Mangled replacements such as missing-number fragments, placeholder-like text, or grammatically broken metrics are worse than clean omission because they impair extraction and credibility.
+Do not mislabel simple information loss as fabrication. Replacing “100-case golden dataset” with “several-case,” omitting “3-engineer team,” or corrupting “Mar 2025” into “Mar several” is a dequantification or precision defect, not necessarily an invented claim. It is still harmful because it destroys machine-extractable evidence and recruiter credibility.
 
-Grounding violations override job alignment. A version that appears more tailored only because it fabricates or inflates evidence must lose to an honest counterpart.
+### Step 2: Identify only the substantive differences
 
-### Step 2 — Evaluate `ats_signal`
+Create an internal delta list of facts, wording, ordering, structure, and formatting that differ between A and B. Judge those differences rather than rewarding content both versions share.
 
-Modern screeners do more than count keywords. They parse sections and dated roles, infer recency and duration, connect skills to evidence, infer seniority from titles and dates, and rank semantic similarity to the posting.
+For every difference, ask:
+1. Is it supported by the original?
+2. Is it more or less specific than the original?
+3. Is it placed where ATS systems can associate it with a dated role?
+4. Is it visible and persuasive during a top-third/F-pattern skim?
+5. Is it useful evidence, or merely job-description vocabulary?
 
-Prefer the version that:
+Run the comparison symmetrically: mentally swap A and B and confirm that the same content—not the label or order—would still win.
 
-- places the posting’s actual technologies, methods, and domain vocabulary inside dated experience or project bullets with support from the original;
-- preserves concrete, machine-extractable evidence such as metrics, latency, throughput, scale, dates, deployment scope, and named systems;
-- uses recognizable headers such as Summary, Experience, Skills, Projects, and Education;
-- presents titles, employers, and dates consistently;
-- keeps bullets and role boundaries structurally distinct;
-- makes it easy to associate each skill or accomplishment with the correct role and date.
+### Step 3: Detect degradation and quality traps
 
-Apply these limits:
+Explicitly check for the following.
 
-- A dedicated Skills section can help extraction, but it is a secondary signal. Do not award a meaningful ATS win merely because one version has a longer skills list.
-- Skills such as Python, AWS, LLMs, structured outputs, MCP, orchestration, or other job-specific terms count most when supported in dated bullets; a stuffed skills blob counts little and can hurt.
-- Do not reward raw keyword frequency, repeated job-description phrases, or synonyms added without evidence.
-- Do not claim an ATS parsing penalty unless the visible structure actually makes roles, dates, sections, or evidence harder to associate.
-- Dequantification is an ATS weakness even when all remaining text is true: deleting supported numbers removes extractable evidence of impact and scale.
-- Wall-of-text formatting may reduce ATS clarity when separate accomplishments or role associations are collapsed, but its strongest effect is usually on the human skim.
+#### A. Dequantification or malformed substitutions
+Penalize a version that replaces grounded facts with vague, broken, or placeholder-like language, including:
+- exact counts changed to “several,” “multiple,” or similar vagueness;
+- malformed constructions such as “several -case” or “several -engineer”;
+- corrupted dates such as “Mar several”;
+- deletion of metrics, scale, team size, dates, or outcomes.
 
-### Step 3 — Evaluate `human_skim`
+Preserving exact evidence such as “100-case golden dataset,” “Led 3-engineer team,” or “Mar 2025” is valuable to both ATS extraction and human trust. Do not call a degradation harmless merely because the surrounding keywords remain.
 
-Model a recruiter who spends about seven seconds, focuses first on the top third, fixates on titles and employers, and scans bold text and the first bullet of each role in an F-pattern.
+#### B. Keyword stuffing
+Do not award points for raw keyword count.
 
-Prefer the version that:
+A keyword or skill is valuable primarily when:
+- it is supported by the original;
+- it appears naturally in a dated experience or project bullet;
+- the bullet explains what the candidate did with it;
+- it is relevant to the target job.
 
-- places the most recent and job-relevant role, title, and evidence in the first screenful;
-- uses a tight, factual summary rather than generic positioning language;
-- leads each role with its strongest, most quantified, and most job-relevant accomplishment;
-- uses short, distinct, evidence-led bullets;
-- exposes metrics and named technologies where the eye can find them quickly;
-- uses clear section headers and consistent chronology.
+A conventional, concise Skills section may help parsing when it lists concrete, grounded tools or languages. It remains weaker evidence than dated experience.
 
+Penalize a “Core Competencies,” “Expertise,” summary, or skills line when it:
+- copies clusters of phrases from the posting;
+- repeats terms already stated elsewhere without adding evidence;
+- contains generic abstractions such as “agent systems,” “evaluation,” “scalability,” or “cross-functional leadership” without support;
+- uses boilerplate such as “leveraging X expertise”;
+- adds a dense comma-separated blob primarily to increase semantic overlap;
+- makes unsupported proficiency or expertise claims.
+
+This remains a quality defect even if some individual words loosely overlap with the original. If two versions have the same substantive experience and one merely adds a stuffed competencies blob, the stuffed version must not win for ATS alignment and should generally lose overall. Do not reinterpret keyword stuffing as a “legitimate readable Skills section” solely because it has a section header.
+
+Distinguish:
+- legitimate Skills: concise, concrete, grounded technologies such as named languages, frameworks, or tools;
+- stuffed competencies: broad job-description phrases, duplicated concepts, unsupported expertise, or unnatural semantic-overlap text.
+
+#### C. Structural degradation
 Penalize:
+- missing or unconventional section headers;
+- unclear title/employer/date relationships;
+- merged wall-of-text bullets;
+- important evidence buried late in a role;
+- overly long summaries;
+- duplicated content;
+- multi-column or decorative layouts that impede parsing, when visible in the supplied text.
 
-- burying a current or highly relevant role below older, less relevant roles;
-- leading with generic duties while stronger evidence is hidden later;
-- merging several bullets into dense paragraphs or wall-of-text blocks;
-- compressed or malformed sections that obscure titles, dates, or accomplishments;
-- keyword-heavy summaries or skills blobs that push dated evidence below the fold;
-- broken numeric phrases or placeholder-like wording in high-salience bullets.
+Do not invent a formatting difference that is not observable from the input.
 
-Important calibration:
+## Evaluation lenses
 
-- If two versions contain the same facts but one buries the newest, most relevant role, that is a real human-skim disadvantage even if ATS can still parse both. If the rest is nearly identical, the overall margin is usually slight.
-- If one version turns distinct evidence-led bullets into dense wall-of-text paragraphs, treat that as a substantial human-skim difference. Do not downgrade it to a trivial preference merely because the words are unchanged. If this affects multiple roles or the top third, it commonly supports a clear overall margin.
-- If one version removes several supported metrics or corrupts them into fragments, that harms both machine extraction and human credibility. Multiple high-salience instances can justify a clear or decisive margin.
+Evaluate the lenses independently after completing the grounding and quality checks.
 
-### Step 4 — Compare, do not score in isolation
+### Lens 1 — `ats_signal`
 
-For each lens, identify the exact feature that differs between A and B. Do not give a version credit for a strength both versions share.
+Modern screeners parse sections, associate skills with dated roles, estimate recency and duration, infer seniority from titles and dates, and rank semantic relevance. They do not simply count keywords.
 
-Before selecting a winner, internally verify:
+Prefer the version that:
+- places relevant, grounded technologies and skills inside dated experience bullets;
+- preserves exact dates, metrics, scale, team sizes, and outcomes;
+- uses recognizable headers such as Summary, Experience, Education, and Skills;
+- clearly associates title, employer, and dates;
+- uses concise, parseable bullets and conventional structure;
+- demonstrates job-relevant work instead of merely naming it.
 
-- Would the same document still win if A and B were relabeled?
-- Is the deciding evidence visible in the supplied text?
-- Am I rewarding supported evidence rather than keyword count?
-- Am I confusing a Skills section with dated proof?
-- Am I overlooking bullet order, role order, deleted metrics, or wall-of-text formatting?
-- Did I incorrectly call an omission a fabrication?
-- Did I state that both versions are grounded without actually checking their claims against the original?
+Context-free lists receive little weight. Unsupported or stuffed lists receive negative weight.
 
-If the versions do not genuinely differ on a lens, return `"tie"` for that lens. Do not manufacture a preference.
+If the versions have no meaningful ATS difference, return `"tie"`.
 
-## Overall decision
+### Lens 2 — `human_skim`
 
-Grounding dominates. Otherwise combine the two lenses according to the severity and quality of the documented differences, not by mechanically counting lens wins.
+Model a recruiter scanning the top third first, then titles, bolded role headings, and the first bullet of each role in an F-pattern.
 
-Use margins consistently:
+Prefer the version that:
+- surfaces the most relevant grounded title and evidence in the first screenful;
+- uses a short, specific summary rather than generic positioning;
+- leads each role with its strongest relevant accomplishment;
+- preserves compelling metrics and concrete scope;
+- uses short, evidence-led bullets;
+- is easy to scan without repetition, jargon blobs, or walls of text.
 
-- `"slight"`: a localized or moderate advantage; underlying evidence is mostly the same, such as burying one relevant role while preserving the content.
-- `"clear"`: a material advantage visible across a lens or in multiple high-value locations, such as widespread wall-of-text formatting, several removed metrics, or substantially better top-third prioritization.
-- `"decisive"`: major fabrication/inflation, pervasive corruption, or severe high-salience damage affecting both ATS extraction and recruiter comprehension.
+A generic duty statement should not outrank a quantified accomplishment. A stuffed top-of-page competency block is harmful because it consumes prime space without establishing evidence.
 
-Do not use `"decisive"` merely because one version is somewhat cleaner. If the overall winner is `"tie"`, use `"slight"` as the margin solely to satisfy the required schema and explain that no substantive difference exists.
+If the versions have no meaningful human-skim difference, return `"tie"`.
+
+## Combining the lenses
+
+Apply these priorities:
+
+1. Material grounding violations outweigh all apparent job alignment.
+2. If grounding is comparable, major degradation of exact metrics, dates, scale, or readable structure can decide the result.
+3. Keyword stuffing is not an ATS advantage. When substantive experience is otherwise equal, a stuffed version should lose to the cleaner version.
+4. Otherwise, combine the two lenses and give more weight to the larger, better-evidenced difference.
+5. Do not manufacture a preference. Ties are valid.
+6. The verdict must remain unchanged if the same resume contents are relabeled or presented in reverse order.
+
+## Margin calibration
+
+- `"slight"`: a small but real difference, such as modest bullet ordering or one useful grounded skill-placement improvement.
+- `"clear"`: multiple meaningful differences, a notable structural defect, lost quantified evidence, or a distinct keyword-stuffing problem.
+- `"decisive"`: fabrication/inflation, widespread malformed or dequantified content, severe parsing damage, or several major defects all favoring one version.
+
+Do not use `"decisive"` merely because one version is somewhat cleaner. If the overall winner is `"tie"`, use `"slight"` as the margin and state that no material distinction exists.
 
 ## Evidence requirements
 
-Every verdict must cite concrete differences. Quote or name the exact bullet, role, date, metric, section, keyword placement, or formatting change that decided the lens.
+Every decision must cite the exact difference that determines it:
+- quote the relevant phrase or bullet when possible;
+- identify the exact section, title, date, metric, or keyword cluster;
+- explain whether it is grounded, dequantified, malformed, misplaced, duplicated, or stuffed.
 
-Avoid unsupported generic statements such as:
-
-- “A is more professional.”
-- “B has better ATS optimization.”
-- “A is cleaner.”
-- “Both are grounded.”
-
-Instead explain precisely, for example:
-
-- one version places the May 2025–Present AI role before older positions;
-- one preserves a supported latency or scale metric that the other deletes;
-- one keeps three accomplishments as separate bullets while the other merges them into one paragraph;
-- one lists a technology only in Skills while the other also demonstrates it in a dated role;
-- one introduces a title, date, metric, or technology absent from the original.
+Do not use generic claims such as “more aligned,” “cleaner,” or “better optimized” without naming the concrete evidence. Do not claim that a phrase is unsupported unless comparison with the original establishes that.
 
 ## Output
 
-Return one valid JSON object only. Do not use Markdown or add commentary outside the JSON.
+Return valid JSON only, with no Markdown or text outside the JSON:
 
 {
   "ats_signal": {
     "winner": "A" | "B" | "tie",
-    "evidence": "Specific, comparative evidence naming the exact difference that decided this lens."
+    "evidence": "Specific content-based explanation citing the deciding difference."
   },
   "human_skim": {
     "winner": "A" | "B" | "tie",
-    "evidence": "Specific, comparative evidence naming the exact difference that decided this lens."
+    "evidence": "Specific content-based explanation citing the deciding difference."
   },
   "overall": {
     "winner": "A" | "B" | "tie",
     "margin": "slight" | "clear" | "decisive",
-    "rationale": "Concise synthesis explaining how grounding and the two lenses determine the result, with concrete document references."
+    "rationale": "Concise synthesis grounded in exact differences, with grounding and quality defects given priority."
   }
 }

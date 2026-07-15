@@ -75,6 +75,14 @@ Success criteria (design §07): held-out accuracy ≥85% and above seed baseline
 - Reuse cleanup adopted from self-review backlog: shared tpe/jsonl.py (read with line-numbered errors, write); corpus + compare-runs migrated.
 - 103 tests green.
 
+### v5 refresh: GEPA + gate re-run (2026-07-14) — CURRENT NUMBERS
+- Seed baseline (val, mini, strict flips): acc 0.819 / flip 0.312 / gepa 0.741 — higher than v1's 0.784 seed, confirming the removed pairs were mislabeled.
+- GEPA (400 calls, mini rollouts / sol reflection, parallel adapter): best val 0.831; verified acc 0.887 / flip 0.225 / gepa 0.831. New frozen prompt at prompts/optimized_judge.md (audited: no company/JD/finance leakage from reflection).
+- GATE PASSED on test (177 pairs x 4 tiers): nano 0.758 / mini 0.767 / terra 0.883 / sol 0.888 (monotone); subtle spread +0.138, bootstrap 95% CI [+0.026, +0.250] (new CI rule passed); McNemar 90/10 top-wins, p<0.0001. Report: runs/sensitivity_20260714_230353.md.
+- Production tier stays mid/terra (0.883/0.051). mini's strict flip rate on test is 0.463 — decisively unfit for production verdicts, reinforcing the tier policy.
+- README staleness caveat REPLACED with v5 provenance line. Ops: one transient-exhausted pair aborted the first sweep; cache-resume completed it (run_pairs behaved as designed).
+- Public-repo privacy re-audit (user-requested): no JD text, no target-company names, no finance terms in any pushed commit; "Anthropic"/"OpenAI" appear only as model-provider architecture statements; fresh GEPA prompt clean; AGENTS.md now warns that pair_ids embed company-named trace ids (local logs only).
+
 ### Now
 - Pipeline complete and gated. Ready for real use via `tpe compare-runs`.
 

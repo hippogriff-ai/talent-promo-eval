@@ -27,7 +27,8 @@ the entire value of this repo. Everything else is plumbing.
 
 2. **Tier-sensitivity gate** (`src/tpe/sensitivity.py`): the same frozen prompt runs on
    a model capability ladder (nano → mini → mid → top). Gate = monotone accuracy +
-   ≥10-point spread on subtle-severity pairs + exact McNemar p < 0.05. A rubric that
+   ≥10-point subtle spread with a paired-bootstrap CI excluding zero + directional
+   exact McNemar p < 0.05 (top tier must WIN more discordants). A rubric that
    scores the same on every tier is a pattern-matchable checklist and FAILS. If you
    change the judge prompt, the gate result is stale until re-run.
 
@@ -36,7 +37,7 @@ the entire value of this repo. Everything else is plumbing.
 - **mini** (`gpt-5.4-mini`) = GEPA rollout workhorse + a sensitivity-ladder rung.
   It is deliberately cheap because optimization needs thousands of calls.
 - **mid** (`gpt-5.6-terra`) = the **production judge** — default for `compare-runs`
-  and `judge-one`. Chosen by the gate (test accuracy 0.887, flip rate 0.050).
+  and `judge-one`. Chosen by the gate (test accuracy 0.883, flip rate 0.051 on dataset v5).
 - **top** (`gpt-5.6-sol`) = GEPA reflection model + ladder ceiling.
 - Model IDs live ONLY in `src/tpe/models.py` (`_DEFAULT_LADDER`), overridable via
   `TPE_MODEL_<TIER>` env vars. Do not scatter model IDs elsewhere.
@@ -82,7 +83,9 @@ profile. Tests that need corpus data skip when it's absent. To materialize local
 set `TALENT_PROMO_DIR` to a talent-promo checkout, run `scripts/snapshot_corpus.py`,
 then the pair-builder snippet in README "Setup". Never commit anything under `data/`
 or `runs/`, and never embed job-posting text or profile text in code, tests, docs, or
-commit messages — company-identifying content must stay out of git history.
+commit messages — company-identifying content must stay out of git history. Note that
+pair_ids embed trace ids (which name companies): error messages and eval logs that
+print pair_ids are LOCAL-ONLY artifacts; never paste them into issues, PRs, or docs.
 
 ## Working on this repo
 

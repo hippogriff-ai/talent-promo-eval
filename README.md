@@ -8,18 +8,16 @@ Most LLM-as-judge setups are a hand-written prompt and a prayer: nobody knows wh
 
 We never ask a human "which resume is better?" during training. Instead we *manufacture* comparisons where the answer is known by construction: take a real optimized resume, apply one tagged degradation (strip the job's keywords, bury the relevant role, de-quantify the bullets, merge bullets into walls of text…), and the original must win. Keyword-**stuffed** variants are trap pairs that must **lose** — so the judge cannot learn "more keywords = better."
 
-[GEPA](https://arxiv.org/abs/2507.19457) then evolves the judge prompt against those pairs: a candidate rubric judges a batch; every miss produces reflective feedback that *names the degradation it failed to catch* ("this pair was `dequantify:subtle` and your verdict flipped with presentation order"); a top-tier model rewrites the rubric to fix exactly that; Pareto selection keeps the strongest variants. The rubric is **learned from failure, not authored from intuition** — the seed prompt (distilled from screening research, see `docs/taste-guide.md`) went from 0.784 → 0.935 accuracy and 0.358 → 0.123 order-flip rate on validation.
+[GEPA](https://arxiv.org/abs/2507.19457) then evolves the judge prompt against those pairs: a candidate rubric judges a batch; every miss produces reflective feedback that *names the degradation it failed to catch* ("this pair was `dequantify:subtle` and your verdict flipped with presentation order"); a top-tier model rewrites the rubric to fix exactly that; Pareto selection keeps the strongest variants. The rubric is **learned from failure, not authored from intuition** — the seed prompt (distilled from screening research, see `docs/taste-guide.md`) went from 0.819 → 0.887 accuracy and 0.312 → 0.225 order-flip rate on validation (strict flip accounting: any verdict change across presentation orders, ties included).
 
 ### 2. The tier-sensitivity gate proves the rubric requires reasoning
 
 The core trust test: run the *same frozen prompt* across a model capability ladder (gpt-5.4-nano → gpt-5.4-mini → gpt-5.6-terra → gpt-5.6-sol). If the rubric encodes real judgment, smarter models must score higher — especially on *subtle* degradations. If every tier scores the same, the rubric is a checklist any model can pattern-match, and its verdicts carry no signal.
 
-The gate demands: **monotone accuracy up the ladder** + **≥10-point spread on subtle pairs** + **directional McNemar p < 0.05**. Our optimized judge passed: 0.749 → 0.810 → 0.887 → 0.890, subtle-slice spread +21.6 points, p < 0.0001. A flat ladder would have failed the build.
+The gate demands: **monotone accuracy up the ladder** + **≥10-point spread on subtle pairs** + **directional McNemar p < 0.05**. Our optimized judge passed: 0.758 → 0.767 → 0.883 → 0.888, subtle-slice spread +13.8 points (bootstrap 95% CI [+2.6, +25.0], zero excluded), McNemar 90/10 discordants top-wins at p < 0.0001. A flat ladder would have failed the build.
 
-> **Staleness caveat:** those numbers were measured on the v1 pair dataset (508 pairs).
-> Subsequent label-integrity review rounds rebuilt the dataset (494 pairs, see
-> `CONTINUITY.md`) and tightened the flip-rate definition; a re-run of GEPA + the gate
-> on the current dataset is pending. Treat the exact figures as v1-dataset results.
+> Measured 2026-07-14 on dataset v5 (497 pairs) after five label-integrity review
+> rounds, with strict flip accounting and the directional-McNemar + bootstrap-CI gate.
 
 ```
 corpus snapshot ──┐
@@ -40,7 +38,7 @@ seed prompt ──> GEPA loop (rollouts on mini, reflection on top) ──> opti
 | Tier | Model | Role |
 |---|---|---|
 | nano / mini | gpt-5.4-nano / -mini | Bottom rungs of the sensitivity ladder. **mini is also the GEPA rollout workhorse** (thousands of cheap calls during optimization) — it is NOT the production judge. |
-| mid | gpt-5.6-terra | **Production judge** — default for `compare-runs` and `judge-one`. Test accuracy 0.887, flip rate 0.050, half the price of top. |
+| mid | gpt-5.6-terra | **Production judge** — default for `compare-runs` and `judge-one`. Test accuracy 0.883, flip rate 0.051, half the price of top. |
 | top | gpt-5.6-sol | GEPA reflection (rewrites the rubric) + ceiling rung of the sensitivity ladder. |
 
 The point of optimizing on mini and *judging* on mid/top: GEPA needs volume, verdicts need capability. The sensitivity gate is what proves the capability actually buys accuracy.
