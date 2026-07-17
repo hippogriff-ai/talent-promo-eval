@@ -171,6 +171,13 @@ def compare_runs(
         typer.echo(f"ids with missing/blank 'job': {jobless[:5]} — every row needs "
                    f"the posting text the resumes were optimized for")
         raise typer.Exit(1)
+    bad_meta = [i for i in shared
+                if any(r.get("meta") is not None and not isinstance(r.get("meta"), dict)
+                       for r in (rows_a[i], rows_b[i]))]
+    if bad_meta:  # a malformed meta would TypeError only AFTER the judging spend
+        typer.echo(f"ids with non-object 'meta': {bad_meta[:5]} — meta must be a JSON "
+                   f"object of slicing keys")
+        raise typer.Exit(1)
     # Grounding = original + union of candidate-confirmed facts from BOTH sessions:
     # a fact confirmed in either session is true of the candidate regardless of run.
     # "better" slot holds run B; pair_score==1.0 then means B beat A in both orders.

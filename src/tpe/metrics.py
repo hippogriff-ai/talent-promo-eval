@@ -43,11 +43,15 @@ def summarize(results: list) -> Summary:
     )
 
 
-def mcnemar_exact(b: int, c: int) -> float:
-    """Exact two-sided McNemar: b = top-correct/bottom-wrong, c = bottom-correct/top-wrong."""
+def mcnemar_exact(b: int, c: int, one_sided: bool = False) -> float:
+    """Exact McNemar: b = top-correct/bottom-wrong, c = bottom-correct/top-wrong.
+    one_sided=True tests the DIRECTIONAL hypothesis that top beats bottom
+    (upper tail P(X >= b)); default is the classic two-sided test."""
     n = b + c
     if n == 0:
         return 1.0
+    if one_sided:
+        return sum(math.comb(n, i) for i in range(b, n + 1)) / 2 ** n
     k = min(b, c)
     tail = sum(math.comb(n, i) for i in range(k + 1)) / 2 ** n
     return min(1.0, 2 * tail)

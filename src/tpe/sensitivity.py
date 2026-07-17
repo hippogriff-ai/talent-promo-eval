@@ -74,11 +74,12 @@ def gate(tier_results: dict[str, list], spread_min: float = 0.10) -> GateReport:
     top = {r.pair.pair_id: r.pair_score == 1.0 for r in tier_results[tiers[-1]]}
     b = sum(1 for pid in bottom if top.get(pid, False) and not bottom[pid])
     c = sum(1 for pid in bottom if bottom[pid] and not top.get(pid, False))
-    p = mcnemar_exact(b, c)
+    # One-sided exact test of the DIRECTIONAL hypothesis (top wins more discordants):
+    # the direction is in the tail itself, so b <= c can never be significant, and a
+    # genuine top-tier advantage is not double-penalized by a two-sided p.
+    p = mcnemar_exact(b, c, one_sided=True)
     spread_ok = subtle_spread >= spread_min and spread_ci[0] > 0
-    # Direction matters: a significant p with c > b means the BOTTOM tier wins more
-    # discordant pairs — evidence AGAINST capability sensitivity, not for it.
-    significant = p < 0.05 and b > c
+    significant = p < 0.05
     return GateReport(
         per_tier={t: {"accuracy": summaries[t].accuracy, "subtle": subtle[t],
                       "subtle_n": len(_subtle_scores(tier_results[t])),
@@ -99,7 +100,7 @@ def render_report(g: GateReport) -> str:
               f"- monotone ladder: **{g.monotone}**",
               f"- subtle-slice spread (top − bottom): **{g.subtle_spread:+.3f}**, bootstrap 95% CI [{g.spread_ci[0]:+.3f}, {g.spread_ci[1]:+.3f}] (gate: ≥ {g.spread_min:+.2f} and CI > 0: {g.spread_ok})",
               f"- McNemar bottom vs top: **p = {g.mcnemar_p:.4f}**, discordants top-wins/bottom-wins = "
-              f"{g.mcnemar_b}/{g.mcnemar_c} (gate: p < 0.05 AND top wins more: {g.significant})",
+              f"{g.mcnemar_b}/{g.mcnemar_c} (one-sided directional test, gate p < 0.05: {g.significant})",
               f"- **GATE {'PASSED' if g.passed else 'FAILED'}**", ""]
     if not g.passed:
         lines.append("A failed gate means the rubric does not require model capability: "

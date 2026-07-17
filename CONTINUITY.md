@@ -83,9 +83,11 @@ Success criteria (design §07): held-out accuracy ≥85% and above seed baseline
 - README staleness caveat REPLACED with v5 provenance line. Ops: one transient-exhausted pair aborted the first sweep; cache-resume completed it (run_pairs behaved as designed).
 - Public-repo privacy re-audit (user-requested): no JD text, no target-company names, no finance terms in any pushed commit; "Anthropic"/"OpenAI" appear only as model-provider architecture statements; fresh GEPA prompt clean; AGENTS.md now warns that pair_ids embed company-named trace ids (local logs only).
 
-### Codex review cycle: CONVERGED (2026-07-15)
-- 10 review rounds total. R1: 7 findings, R2: 7 (incl. P1 privacy), R3: 3, R4: 4, R5: 9 — all 30 verified before adoption, zero false positives from codex. R6-R10: five consecutive clean reviews across three distinct commits (round-5 fixes, bootstrap-CI+jsonl, v5 refresh incl. the regenerated GEPA prompt).
-- Loop discipline used: monitor for review -> verify each finding against code -> adopt or push back with reasons -> fix + regression tests -> push -> next round. Summon via bare "@codex review" comment when auto-review doesn't fire.
+### Codex review cycle (2026-07-15..17) — convergence claim CORRECTED
+- R1: 7 findings, R2: 7 (incl. P1 privacy), R3: 3, R4: 4, R5: 9; R6-R9 clean.
+- R10-R11 were WRONGLY logged as clean: the GitHub comments API paginates at 30/page and the checker read only page 1. Paginated re-check (user prompted) found 5 more P2s, all confirmed and adopted (2026-07-17): C# preserved in keyword extraction; slash-delimited short tokens (R/Python, C/C++) survive; acronym metric-exemption narrowed to bare numbers (API 10M is a metric, SOC 2 is a name); McNemar now a true one-sided directional test (two-sided + b>c was over-conservative — a real 9/2 advantage would have failed); compare-runs preflights non-dict meta before spending API calls.
+- v5 gate result unaffected (one-sided p for 90/10 is < the reported bound). Running total: 35 codex findings adopted, 0 false positives.
+- PROCESS RULE: any gh api polling of PR comments/reviews MUST use --paginate.
 
 ### Now
 - Pipeline complete and gated. Ready for real use via `tpe compare-runs`.

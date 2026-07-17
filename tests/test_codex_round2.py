@@ -273,3 +273,49 @@ def test_wall_of_text_budget_skips_single_bullet_first_list():
     out = wall_of_text(single + multi, ctx, "moderate")
     assert out.startswith(single)
     assert out.count("<li>") == 2  # multi list merged into one bullet
+
+
+# --- rounds 10-11 (found via paginated re-check) ---
+
+def test_csharp_survives_keyword_extraction():
+    from tpe.degrade import extract_keywords, _kw_present
+    kws = extract_keywords("Senior C# engineer. C# and .NET daily. C# services.")
+    assert "c#" in kws
+    assert _kw_present("c#", "<li>Built C# microservices</li>")
+    assert not _kw_present("c#", "<li>Built C++ services</li>")
+
+
+def test_slash_delimited_short_tokens_survive():
+    from tpe.degrade import extract_keywords
+    kws = extract_keywords("Statistical modeling in R/Python required. R/Python daily work.")
+    assert "r" in kws and "python" in kws
+    kws2 = extract_keywords("Systems programming in C/C++ environments. C/C++ expertise.")
+    assert "c" in kws2 and "c++" in kws2
+
+
+def test_acronym_guard_spares_scale_metrics():
+    from tpe.degrade import _has_metric, _metric_spans
+    assert _has_metric("Scaled API 10M requests/day")     # magnitude suffix = metric
+    assert not _has_metric("Managed SOC 2 controls")      # bare number after acronym = name
+    assert not _has_metric("Led ISO 27001 readiness")
+
+
+def test_mcnemar_one_sided_directional():
+    from tpe.metrics import mcnemar_exact
+    # 9 top-wins vs 2 bottom-wins: two-sided ~0.065 fails, one-sided ~0.033 passes
+    assert mcnemar_exact(9, 2) > 0.05
+    assert mcnemar_exact(9, 2, one_sided=True) < 0.05
+    # wrong direction can never be significant one-sided
+    assert mcnemar_exact(2, 9, one_sided=True) > 0.5
+
+
+def test_compare_runs_rejects_non_dict_meta(tmp_path: Path):
+    a, b = tmp_path / "a.jsonl", tmp_path / "b.jsonl"
+    a.write_text(json.dumps({"id": "x", "job": "J", "original": "O", "resume": "R1"}) + "\n")
+    b.write_text(json.dumps({"id": "x", "job": "J", "original": "O", "resume": "R2",
+                             "meta": "oops-a-string"}) + "\n")
+    result = runner.invoke(app, ["compare-runs", str(a), str(b),
+                                 "--prompt", "prompts/seed_judge.md",
+                                 "--cache-dir", str(tmp_path / "cache")])
+    assert result.exit_code == 1
+    assert "non-object 'meta'" in result.output

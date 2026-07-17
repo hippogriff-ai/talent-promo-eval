@@ -18,7 +18,8 @@ STOPWORDS = frozenset(
 # Short standalone tech tokens the length filter would drop. Matched CASE-SENSITIVELY
 # against the JD ("Go" the language, not "go" the verb) and downstream in resumes.
 SHORT_TECH = {
-    "go": r"\bGo\b", "r": r"\bR\b(?![&/])", "c": r"\bC\b(?![+#/])",
+    "go": r"\bGo\b", "r": r"\bR\b(?!&)", "c": r"\bC\b(?![+#])",
+    "c#": r"\bC#(?![A-Za-z0-9_+])",
     "ai": r"\bAI\b", "ml": r"\bML\b", "ci": r"\bCI\b", "cd": r"\bCD\b",
     "qa": r"\bQA\b", "ui": r"\bUI\b", "ux": r"\bUX\b", "k8s": r"\b[Kk]8s\b",
 }
@@ -26,12 +27,16 @@ SHORT_TECH = {
 
 def extract_keywords(job_text: str, top_n: int = 25) -> list[str]:
     words = re.findall(r"[A-Za-z][A-Za-z0-9+#./-]{2,}", job_text)
-    # "Python/Java" is two skills, not one token the boundary matcher can never find
+    # "Python/Java" is two skills, not one token the boundary matcher can never find.
+    # Short whitelisted parts (R/Python, C/C++) survive the length filter.
     parts = [p for w in words for p in w.split("/")]
-    counts = Counter(p.lower().strip("./-") for p in parts if len(p.strip("./-")) >= 3)
-    kws = [w for w, _ in counts.most_common(top_n * 2) if w not in STOPWORDS][:top_n]
-    kws += [tok for tok, pat in SHORT_TECH.items()
-            if tok not in kws and re.search(pat, job_text)]
+    cleaned = [p.strip("./-") for p in parts]
+    counts = Counter(p.lower() for p in cleaned
+                     if len(p) >= 3 or p.lower() in SHORT_TECH)
+    kws = [w for w, _ in counts.most_common(top_n * 2)
+           if w not in STOPWORDS and w not in SHORT_TECH][:top_n]
+    kws += [tok for tok, pat in SHORT_TECH.items() if tok not in kws
+            and (tok in counts or re.search(pat, job_text))]
     return kws
 
 
@@ -91,7 +96,11 @@ def _metric_spans(text: str) -> list[tuple[int, int]]:
     and rewriting it would mangle a grounded keyword, not remove quantification."""
     spans = []
     for m in _NUM.finditer(text):
-        if re.search(r"\b[A-Z]{2,}[ \-]?$", text[:m.start()]):
+        # The acronym exemption applies only to BARE numbers: "SOC 2"/"ISO 27001"
+        # name a standard, but "API 10M requests" is a scale metric — a magnitude
+        # suffix means quantification regardless of what precedes it.
+        bare = not re.search(r"(?:%|x|k|K|M|MM|\+)\s*$", m.group(0).rstrip())
+        if bare and re.search(r"\b[A-Z]{2,}[ \-]?$", text[:m.start()]):
             continue
         spans.append(m.span())
     return spans
