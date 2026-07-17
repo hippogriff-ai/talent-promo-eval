@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.pytest_cache/
+*.egg-info/
+
+# Local-only by design (privacy): corpus/pairs embed real job postings and the
+# candidate profile; runs carry pair ids derived from them. Regenerate with
+# scripts/snapshot_corpus.py + the pair-builder step in the README.
+data/
+runs/

@@ -10,13 +10,13 @@
 
 ## Global Constraints
 
-- Repo: `/Users/claudevcheval/Hanalei/talent-promo-eval` — standalone; NEVER import from the talent-promo app; corpus arrives via one-time file snapshot.
+- Repo: the repo root — standalone; NEVER import from the talent-promo app; corpus arrives via one-time file snapshot.
 - Judge provider: OpenAI only (generator is Anthropic; cross-provider by design). Workhorse judge model: mini tier; reflection + top rung of ladder: top tier. Exact model IDs pinned from the tech-facts research report in `src/tpe/models.py` (single source of truth).
 - Every judge call goes through the disk cache (`runs/cache/`); cache key = sha256(model, prompt text, pair content, order).
 - All degradations deterministic (no LLM, no randomness) so pairs are reproducible; any randomness anywhere must be seeded.
 - Unit tests never hit the network; live calls only in explicitly `@pytest.mark.live` tests gated on `OPENAI_API_KEY`.
 - All repo artifacts written as product engineering documentation (no meta-narrative).
-- Commits: co-author lines for VickiZzzzz and Claude Fable 5 (per global CLAUDE.md); never amend.
+- Commits: never amend.
 
 ---
 
@@ -86,7 +86,7 @@ def test_package_imports():
 
 - [ ] **Step 2: Verify**
 
-Run: `cd ~/Hanalei/talent-promo-eval && uv sync && uv run pytest -q`
+Run: `cd . && uv sync && uv run pytest -q`
 Expected: 1 passed. (If `gepa` wheel needs an adjusted version pin, take the current PyPI version from the tech-facts report.)
 
 - [ ] **Step 3: Commit** — `chore: scaffold uv project`
@@ -470,7 +470,7 @@ def job_text(source: str, cache_dir: Path = Path("data/jobs")) -> str:
 
 - [ ] **Step 1: Locate source files in the app repo (read-only)**
 
-Run: `ls ~/Hanalei/talent-promo/apps/api/evals/coding/ | head -30` and `ls ~/Hanalei/talent-promo/apps/api/evals/coding/*.jsonl`
+Run: `ls $TALENT_PROMO_DIR/apps/api/evals/coding/ | head -30` and `ls $TALENT_PROMO_DIR/apps/api/evals/coding/*.jsonl`
 Expected: `corpus.jsonl` (28 records), `judge_alignment_from_coding.json`, `job_postings_raw/`, `source_profile.md`, `source_profile_b.md`. Inspect the first record with `head -c 2000 corpus.jsonl` to confirm actual field names, then adapt the loader's field mapping if they differ from `profile_text`/`job_text`/`generated_html` (they may be nested under `inputs`/`outputs`).
 
 - [ ] **Step 2: Write snapshot script and run it**
@@ -482,7 +482,7 @@ import json
 import shutil
 from pathlib import Path
 
-SRC = Path.home() / "Hanalei/talent-promo/apps/api/evals/coding"
+SRC = Path(os.environ.get("TALENT_PROMO_DIR", str(Path.home() / "talent-promo"))) / "apps/api/evals/coding"
 DST = Path(__file__).resolve().parent.parent / "data/corpus"
 
 
@@ -508,7 +508,7 @@ if __name__ == "__main__":
 ```
 
 Run: `uv run python scripts/snapshot_corpus.py`
-Expected: all files copied, 14 job postings. If `corpus.jsonl` lives elsewhere, find it with `find ~/Hanalei/talent-promo/apps/api/evals -name "corpus*.jsonl"` and update SRC handling.
+Expected: all files copied, 14 job postings. If `corpus.jsonl` lives elsewhere, find it with `find $TALENT_PROMO_DIR/apps/api/evals -name "corpus*.jsonl"` and update SRC handling.
 
 - [ ] **Step 3: Failing test for the loader**
 
