@@ -90,17 +90,28 @@ def _keyword_density(text: str, keywords: list[str]) -> int:
 _NUM = re.compile(r"(?:\b(?:by|to)\s+)?(?<![A-Za-z0-9.])\d[\d,.]*(?:\s?(?:%|x|k|K|M|MM|\+))?(?![A-Za-z0-9])")
 
 
+# Tools commonly written with a trailing version number ("Python 3", "Vue 2").
+# A number after these NAMES the tool; it is not quantification. Lexicon-based on
+# purpose: a blanket capitalized-word rule would wrongly exempt "Led 3 engineers".
+_VERSIONED_TECH = (r"\b(?:Python|Java|Vue|Angular|React|Node|Rails|Django|Drupal|"
+                   r"Laravel|Spark|Hadoop|PHP|Perl|Scala|Swift|Kafka|Postgres|"
+                   r"PostgreSQL|MySQL|Redis|Terraform|Kubernetes|HTTP)[ ]?$")
+
+
 def _metric_spans(text: str) -> list[tuple[int, int]]:
     """Metric matches, excluding numbers that NAME things: an all-caps acronym
-    directly before the number (SOC 2, ISO 27001, PCI-DSS 4) is a standard/cert,
-    and rewriting it would mangle a grounded keyword, not remove quantification."""
+    (SOC 2, ISO 27001) or a versioned tool (Python 3, Vue 2) directly before the
+    number means the number is part of a grounded keyword, and rewriting it would
+    mangle the keyword, not remove quantification."""
     spans = []
     for m in _NUM.finditer(text):
-        # The acronym exemption applies only to BARE numbers: "SOC 2"/"ISO 27001"
-        # name a standard, but "API 10M requests" is a scale metric — a magnitude
+        # The naming exemption applies only to BARE numbers: "SOC 2" names a
+        # standard, but "API 10M requests" is a scale metric — a magnitude
         # suffix means quantification regardless of what precedes it.
         bare = not re.search(r"(?:%|x|k|K|M|MM|\+)\s*$", m.group(0).rstrip())
-        if bare and re.search(r"\b[A-Z]{2,}[ \-]?$", text[:m.start()]):
+        prefix = text[:m.start()]
+        if bare and (re.search(r"\b[A-Z]{2,}[ \-]?$", prefix)
+                     or re.search(_VERSIONED_TECH, prefix)):
             continue
         spans.append(m.span())
     return spans

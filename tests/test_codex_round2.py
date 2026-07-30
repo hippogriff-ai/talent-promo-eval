@@ -319,3 +319,16 @@ def test_compare_runs_rejects_non_dict_meta(tmp_path: Path):
                                  "--cache-dir", str(tmp_path / "cache")])
     assert result.exit_code == 1
     assert "non-object 'meta'" in result.output
+
+
+# --- round 13 ---
+
+def test_versioned_tools_are_not_metrics():
+    from tpe.degrade import _has_metric, dequantify
+    assert not _has_metric("Skills: Python 3, Vue 2, Angular 2")
+    assert _has_metric("Led 3 engineers")           # capitalized verb, real metric
+    assert _has_metric("cut latency by 3")          # by-prefix, real metric
+    ctx = DegradeContext(jd_keywords=[])
+    html = "<ul><li>Migrated services to Python 3, cutting build time by 40%.</li></ul>"
+    out = dequantify(html, ctx, "severe")
+    assert "Python 3" in out and "40%" not in out

@@ -96,6 +96,9 @@ Success criteria (design §07): held-out accuracy ≥85% and above seed baseline
 - Also noted: the GEPA prompt carries two verbatim profile phrases as boundary examples ("100-case golden dataset", "3-engineer team") — no company/employer info, within the user's stated privacy standard (companies only), but outside AGENTS.md's stricter no-profile-text rule; scrubbing requires a GEPA regen, deferred to the same re-gate.
 - 109 tests. Codex running total: 36 findings adopted, 0 false positives.
 
+### Codex round 13 (2026-07-30): versioned-tech numbers — adopted
+- "Python 3"/"Vue 2"-style version numbers no longer count as metrics (lexicon-based _VERSIONED_TECH exemption, bare numbers only; "Led 3 engineers" and "by 3" stay metrics — a blanket capitalized-word rule would over-exempt). Dataset counts unchanged on this corpus. 110 tests. Codex total: 37 findings adopted, 0 false positives.
+
 ### Now
 - Pipeline complete and gated. Ready for real use via `tpe compare-runs`.
 
