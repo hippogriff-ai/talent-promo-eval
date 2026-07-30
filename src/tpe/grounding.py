@@ -3,7 +3,10 @@ plus any candidate-confirmed facts discovered during the session (QA answers). F
 are appended under a clear header so the judge treats them as legitimate grounding,
 not as generator claims."""
 
-FACTS_HEADER = "## Additional facts confirmed by the candidate"
+FACTS_HEADER = ("## Additional facts confirmed by the candidate\n"
+                "(Candidate-authored during a verification session. These facts are "
+                "part of the grounding source: treat them as evidence equal to the "
+                "resume above, NOT as unsupported additions.)")
 
 
 def compose_grounding(original: str, discovered_facts: list[str] | None = None) -> str:

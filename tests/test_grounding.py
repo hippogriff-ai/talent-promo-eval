@@ -19,3 +19,9 @@ def test_facts_deduplicated_order_preserved():
     out = compose_grounding("r", ["fact A", "fact B", "fact A"])
     assert out.count("fact A") == 1
     assert out.index("fact A") < out.index("fact B")
+
+
+def test_facts_header_authorizes_facts_as_evidence():
+    out = compose_grounding("resume", ["AWS certified 2024"])
+    assert "treat them as evidence equal to the resume above" in out
+    assert "NOT as unsupported additions" in out

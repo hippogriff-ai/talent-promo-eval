@@ -89,6 +89,13 @@ Success criteria (design §07): held-out accuracy ≥85% and above seed baseline
 - v5 gate result unaffected (one-sided p for 90/10 is < the reported bound). Running total: 35 codex findings adopted, 0 false positives.
 - PROCESS RULE: any gh api polling of PR comments/reviews MUST use --paginate.
 
+### Codex round 12 (2026-07-30): P1 on frozen prompt vs discovered_facts — mitigated
+- Finding (CONFIRMED): the v5 GEPA prompt says "Treat the original resume as the only evidence that exists" while compare-runs appends confirmed discovery facts to the grounding block — a resume using a confirmed fact could be judged as fabricating.
+- Mitigation (no hand-edit of the frozen artifact): the FACTS_HEADER injected by compose_grounding now declares the facts candidate-authored grounding "equal to the resume above, NOT unsupported additions" — the authorization travels inside {{ORIGINAL_RESUME}} only when facts exist (zero effect on fact-free pairs, zero cache invalidation). Seed prompt updated so future GEPA runs inherit explicit confirmed-facts language.
+- Durable fix (deferred, needs data we don't have): build fact-bearing pairs from production sessions, re-run GEPA + gate — folds into the existing facts-re-gate follow-up.
+- Also noted: the GEPA prompt carries two verbatim profile phrases as boundary examples ("100-case golden dataset", "3-engineer team") — no company/employer info, within the user's stated privacy standard (companies only), but outside AGENTS.md's stricter no-profile-text rule; scrubbing requires a GEPA regen, deferred to the same re-gate.
+- 109 tests. Codex running total: 36 findings adopted, 0 false positives.
+
 ### Now
 - Pipeline complete and gated. Ready for real use via `tpe compare-runs`.
 
